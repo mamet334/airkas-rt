@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --accent: #0f766e; /* Teal-700 */
+  --accent-light: #ccfbf1; /* Teal-100 */
+  --accent-hover: #0d9488; /* Teal-600 */
+  --muted: #64748b; /* Slate-500 */
+  --border: #e2e8f0; /* Slate-200 */
+  --bg-main: #f8fafc; /* Slate-50 */
+  --bg-card: #ffffff;
+  --text-main: #0f172a; /* Slate-900 */
+  --text-muted: #475569; /* Slate-600 */
+}
+
+/* Dark mode theme variables */
+.dark {
+  --accent: #2dd4bf; /* Teal-400 */
+  --accent-light: #115e59; /* Teal-800 */
+  --accent-hover: #14b8a6; /* Teal-500 */
+  --muted: #94a3b8; /* Slate-400 */
+  --border: #334155; /* Slate-700 */
+  --bg-main: #0f172a; /* Slate-900 */
+  --bg-card: #1e293b; /* Slate-800 */
+  --text-main: #f8fafc; /* Slate-50 */
+  --text-muted: #cbd5e1; /* Slate-300 */
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--bg-main)] text-[var(--text-main)] antialiased transition-colors duration-200;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom premium styles */
+.glassmorphism {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.dark .glassmorphism {
+  background: rgba(30, 41, 59, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.print-only,
+.print-header {
+  display: none !important;
+}
+
+/* Print CSS optimization */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only,
+  .print-header {
+    display: block !important;
+  }
+  .print-card {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    break-inside: avoid-page !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+  }
+  .print-signature-group {
+    display: block !important;
+    width: 100% !important;
+    margin-top: 40px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .print-signature-group > div {
+    display: inline-block !important;
+    width: 48% !important;
+    margin: 0 1% !important;
+    vertical-align: top !important;
+  }
+  .print-container {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}
+
+/* Custom animation keyframes */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-out {
+  animation: slideOutRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
