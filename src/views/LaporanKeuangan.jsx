@@ -36,10 +36,17 @@ const LaporanKeuangan = () => {
   const b = selectedMonth;
   const t = selectedYear;
 
+  // Target month/year for billing offset (b - 1)
+  const targetB = b === 1 ? 12 : b - 1;
+  const targetT = b === 1 ? t - 1 : t;
+
   // --- MONTHLY DATA PREPARATION (Siklus 15-15) ---
-  const mtrBln = state.meteran.filter(m => m.bulan === b && m.tahun === t);
-  // Kembalikan ke filter bulan/tahun asli agar sinkron dengan data yang diinput lewat form
-  const byrBln = state.pembayaran.filter(p => p.bulan === b && p.tahun === t);
+  // UI and billing summary cards are offset by 1 month (b - 1) to match the collection period
+  const mtrBln = state.meteran.filter(m => m.bulan === targetB && m.tahun === targetT);
+  const byrBln = state.pembayaran.filter(p => p.bulan === targetB && p.tahun === targetT);
+  
+  // Physical cash flow for the selected month (b)
+  const byrSiklus = filterByrBySiklus(state.pembayaran, b, t);
   const klrBln = filterKlrBySiklus(state.pengeluaran, b, t);
   const cycleRange = getCycleDateRange(b, t);
 
@@ -47,7 +54,7 @@ const LaporanKeuangan = () => {
   const [captureMode, setCaptureMode] = useState(false);
   const mBlnActiveSorted = [...state.meteran.filter(m => {
     const w = state.warga.find(x => x.id === m.warga_id);
-    return m.bulan === b && m.tahun === t && w && w.alamat !== 'SISTEM';
+    return m.bulan === targetB && m.tahun === targetT && w && w.alamat !== 'SISTEM';
   })].sort((x, y) => {
     const wx = state.warga.find(w => w.id === x.warga_id);
     const wy = state.warga.find(w => w.id === y.warga_id);
@@ -75,7 +82,7 @@ const LaporanKeuangan = () => {
   const keluarAir = klrBln.filter(k => k.kategori !== 'Perbaikan Mesin (Patungan)').reduce((s, k) => s + k.jumlah, 0);
   const kasBersihMeteran = pendapatanAir - keluarAir;
 
-  const masuk = byrBln.reduce((s, p) => s + p.jumlah_bayar, 0);
+  const masuk = byrSiklus.reduce((s, p) => s + p.jumlah_bayar, 0);
   const keluar = klrBln.reduce((s, k) => s + k.jumlah, 0);
   
   // All-time totals for monthly dashboard metrics
@@ -88,6 +95,24 @@ const LaporanKeuangan = () => {
   const allMesinExp = state.pengeluaran.filter(k => k.kategori === 'Perbaikan Mesin (Patungan)');
   const totalMesinExpAll = allMesinExp.reduce((s, k) => s + k.jumlah, 0);
   const saldoPatungan = totalPatunganAll - totalMesinExpAll;
+
+  const sumMasukCash = masuk;
+  const sumKeluarCash = keluar;
+  
+  // Robust cash flow calculations using cycle dates
+  const { start: cycleStartStr } = getCycleDateRange(b, t);
+  const prevMasuk = state.pembayaran.filter(p => {
+    const tgl = (p.tanggal_bayar || '').split('T')[0];
+    return tgl && tgl < cycleStartStr;
+  }).reduce((s, p) => s + p.jumlah_bayar, 0);
+
+  const prevKeluar = state.pengeluaran.filter(k => {
+    const tgl = (k.tanggal || '').split('T')[0];
+    return tgl && tgl < cycleStartStr;
+  }).reduce((s, k) => s + k.jumlah, 0);
+  
+  const saldoAwalCash = prevMasuk - prevKeluar;
+  const saldoAkhirCash = saldoAwalCash + sumMasukCash - sumKeluarCash;
 
   // --- YEARLY DATA PREPARATION ---
   // Get all months in which transactions exist for this specific year
@@ -164,7 +189,16 @@ const LaporanKeuangan = () => {
 
   // Trigger browser print
   const handlePrint = () => {
-    window.print();
+    const isDark = document.documentElement.classList.contains('dark');
+    if (isDark) {
+      document.documentElement.classList.remove('dark');
+    }
+    setTimeout(() => {
+      window.print();
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      }
+    }, 150);
   };
 
   // --- CSV EXPORTERS ---
@@ -186,7 +220,7 @@ const LaporanKeuangan = () => {
   // CSV Bulanan — Rincian transaksi per bulan
   const handleExportMonthlyCSV = () => {
     const items = [
-      ...byrBln.map(p => ({
+      ...byrSiklus.map(p => ({
         tanggal: p.tanggal_bayar,
         tipe: p.keterangan && p.keterangan.startsWith('[PATUNGAN]') ? 'Patungan Warga' : 'Pemasukan Air',
         warga: state.warga.find(x => x.id === p.warga_id)?.nama || 'Sistem',
@@ -274,140 +308,131 @@ const LaporanKeuangan = () => {
     const pengelola = state.settings?.pengelola || 'Slamet Susanto';
     const alamatRt = state.settings?.alamat_rt || 'Jln.sekar jaya';
 
-    const cleanTagihan = fmtRp(tagihan).replace('Rp', '').trim();
-    const cleanPemasukan = fmtRp(pendapatanAir).replace('Rp', '').trim();
-    const cleanPengeluaran = fmtRp(keluarAir).replace('Rp', '').trim();
-    const cleanSaldo = fmtRp(kasBersihMeteran).replace('Rp', '').trim();
+    const cleanBawaan = (saldoAwalCash < 0 ? '-' : '') + fmtRp(Math.abs(saldoAwalCash)).replace('Rp', '').trim();
+    const cleanPemasukan = fmtRp(sumMasukCash).replace('Rp', '').trim();
+    const cleanPengeluaran = fmtRp(sumKeluarCash).replace('Rp', '').trim();
+    const cleanAkhir = (saldoAkhirCash < 0 ? '-' : '') + fmtRp(Math.abs(saldoAkhirCash)).replace('Rp', '').trim();
 
     const lines = [
-      `*${EMOJIS.water()} LAPORAN KEUANGAN KAS AIR ${rtName} ${EMOJIS.water()}*`,
+      `*💧 LAPORAN KEUANGAN KAS AIR ${rtName.toUpperCase()} 💧*`,
       `*Periode: ${MONTHS[b].toUpperCase()} ${t}*`,
       `_${alamatRt}_`,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       ``,
-      `📊 *RINGKASAN KAS BULANAN*`,
+      `📊 *RINCIAN SALDO KAS RT*`,
       `\`\`\``,
-      `Tagihan Air  : Rp ${cleanTagihan}`,
+      `Saldo Bawaan : Rp ${cleanBawaan}`,
       `Pemasukan    : Rp ${cleanPemasukan}`,
       `Pengeluaran  : Rp ${cleanPengeluaran}`,
-      `Saldo Bersih : Rp ${cleanSaldo}`,
+      `--------------------------`,
+      `Saldo Akhir  : Rp ${cleanAkhir}`,
       `\`\`\``,
       `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       ``,
-      `👥 *DETAIL TAGIHAN & BAYAR WARGA*`,
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
     ];
 
-    // Detail Warga
-    const mBlnActive = state.meteran.filter(m => {
-      const w = state.warga.find(x => x.id === m.warga_id);
-      return m.bulan === b && m.tahun === t && w && w.alamat !== 'SISTEM';
-    });
+    // Get active residents list sorted by no_urut
+    const wargaActiveSorted = state.warga
+      .filter(w => w.aktif && w.alamat !== 'SISTEM')
+      .sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999));
 
-    // Sort by no_meter
-    mBlnActive.sort((x, y) => {
-      const wx = state.warga.find(w => w.id === x.warga_id);
-      const wy = state.warga.find(w => w.id === y.warga_id);
-      return (wx?.no_meter || '').localeCompare(wy?.no_meter || '');
-    });
+    const lunasList = [];
+    const belumList = [];
 
-    mBlnActive.forEach((m, i) => {
-      const w = state.warga.find(x => x.id === m.warga_id);
-      const tagihanVal = w.adalah_pengelola ? 0 : m.total_tagihan;
-      const bayarVal = byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0);
-      const dep = getWargaDeposit(m.warga_id, b, t, state);
-      const tunggakanLalu = getWargaTunggakanLalu(m.warga_id, b, t, state);
+    wargaActiveSorted.forEach(w => {
+      const m = mtrBln.find(x => x.warga_id === w.id);
+      const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+      const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
+      const dep = getWargaDeposit(w.id, targetB, targetT, state);
+      const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
       
       const kewajiban = tagihanVal + tunggakanLalu;
       const sisa = kewajiban - bayarVal - dep;
 
-      let statusEmoji = EMOJIS.lunas();
-      let statusText = 'Lunas';
-
       if (w.adalah_pengelola) {
-        statusEmoji = EMOJIS.lunas();
-        statusText = 'Lunas (Pengelola)';
+        lunasList.push(`${w.nama} (Pengelola)`);
       } else if (sisa <= 0) {
-        statusEmoji = EMOJIS.lunas();
         if (sisa < 0) {
-          statusText = `Lunas (+Dep: Rp ${fmtRp(Math.abs(sisa)).replace('Rp', '').trim()})`;
+          const cleanLebih = fmtRp(Math.abs(sisa)).replace('Rp', '').trim();
+          lunasList.push(`${w.nama} (Lebih Rp ${cleanLebih})`);
         } else {
-          statusText = 'Lunas';
+          lunasList.push(w.nama);
         }
       } else {
-        statusEmoji = (bayarVal > 0 || dep > 0) ? '🟡' : EMOJIS.belumBayar();
-        statusText = `Sisa: Rp ${fmtRp(sisa).replace('Rp', '').trim()}`;
+        const cleanSisa = fmtRp(sisa).replace('Rp', '').trim();
+        belumList.push(`${w.nama} (Sisa Rp ${cleanSisa})`);
       }
-
-      lines.push(`${statusEmoji} *${i + 1}. ${w.nama}* (${w.no_meter})`);
-      lines.push(`   \`${m.pemakaian} m³ | Tag: Rp ${fmtRp(tagihanVal).replace('Rp', '').trim()} | Byr: Rp ${fmtRp(bayarVal).replace('Rp', '').trim()} | ${statusText}\``);
-      lines.push(``);
     });
 
-    // Rincian Pengeluaran Kas
-    const kelAir = klrBln.filter(k => k.kategori !== 'Perbaikan Mesin (Patungan)');
-    if (kelAir.length > 0) {
-      lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-      lines.push(`📤 *RINCIAN PENGELUARAN KAS*`);
-      lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-      kelAir.forEach((k, i) => {
-        const d = new Date(k.tanggal);
-        const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()+1]} ${d.getFullYear()}`;
-        lines.push(`${i + 1}. ${dateStr} - ${k.keterangan}`);
-        lines.push(`   *Rp ${fmtRp(k.jumlah).replace('Rp', '').trim()}* (${k.kategori})`);
+    lines.push(`✅ *SUDAH LUNAS / BAYAR:*`);
+    if (lunasList.length > 0) {
+      lunasList.forEach((item, index) => {
+        lines.push(`${index + 1}. ${item}`);
       });
-      lines.push(``);
+    } else {
+      lines.push(`-`);
     }
 
-    // Laporan Khusus Dana Patungan
-    const cleanPatunganAll = fmtRp(totalPatunganAll).replace('Rp', '').trim();
-    const cleanMesinExpAll = fmtRp(totalMesinExpAll).replace('Rp', '').trim();
-    const cleanSaldoPatungan = fmtRp(saldoPatungan).replace('Rp', '').trim();
-
-    lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    lines.push(`📊 *LAPORAN DANA PATUNGAN*`);
-    lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    lines.push(`\`\`\``);
-    lines.push(`Total Patungan : Rp ${cleanPatunganAll}`);
-    lines.push(`Belanja Pompa  : Rp ${cleanMesinExpAll}`);
-    lines.push(`Sisa Saldo     : Rp ${cleanSaldoPatungan}`);
-    lines.push(`\`\`\``);
+    lines.push(``);
+    lines.push(`❌ *BELUM LUNAS:*`);
+    if (belumList.length > 0) {
+      belumList.forEach((item, index) => {
+        lines.push(`${index + 1}. ${item}`);
+      });
+    } else {
+      lines.push(`-`);
+    }
     lines.push(``);
 
+    // Patungan detail
     const patunganBulanIni = byrBln.filter(p => p.keterangan && p.keterangan.startsWith('[PATUNGAN]'));
     if (patunganBulanIni.length > 0) {
-      lines.push(`*Rincian Patungan Bulan Ini:*`);
-      patunganBulanIni.forEach(p => {
-        const w = state.warga.find(x => x.id === p.warga_id);
-        const nama = w ? w.nama : 'Hamba Allah';
-        const ketDisplay = p.keterangan.replace('[PATUNGAN] ', '');
-        lines.push(`- ${nama}: Rp ${fmtRp(p.jumlah_bayar).replace('Rp', '').trim()} (${ketDisplay})`);
+      // Find unique patungan descriptions
+      const uniqueProjects = Array.from(new Set(patunganBulanIni.map(p => p.keterangan)));
+      
+      uniqueProjects.forEach(proj => {
+        const cleanProjName = proj.replace('[PATUNGAN] ', '').trim();
+        lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        lines.push(`💰 *PATUNGAN: ${cleanProjName.toUpperCase()}*`);
+        lines.push(``);
+        
+        const paymentsForProj = patunganBulanIni.filter(p => p.keterangan === proj);
+        const paidWargaIds = paymentsForProj.map(p => p.warga_id);
+        
+        const sudahPatungan = state.warga
+          .filter(w => w.aktif && w.alamat !== 'SISTEM' && paidWargaIds.includes(w.id))
+          .sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999));
+          
+        const belumPatungan = state.warga
+          .filter(w => w.aktif && w.alamat !== 'SISTEM' && !w.adalah_pengelola && !paidWargaIds.includes(w.id))
+          .sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999));
+          
+        lines.push(`✅ *SUDAH BAYAR PATUNGAN:*`);
+        if (sudahPatungan.length > 0) {
+          sudahPatungan.forEach((w, index) => {
+            const pay = paymentsForProj.find(p => p.warga_id === w.id);
+            const amountStr = pay ? ` (Rp ${fmtRp(pay.jumlah_bayar).replace('Rp', '').trim()})` : '';
+            lines.push(`${index + 1}. ${w.nama}${amountStr}`);
+          });
+        } else {
+          lines.push(`-`);
+        }
+        
+        lines.push(``);
+        lines.push(`❌ *BELUM BAYAR PATUNGAN:*`);
+        if (belumPatungan.length > 0) {
+          belumPatungan.forEach((w, index) => {
+            lines.push(`${index + 1}. ${w.nama}`);
+          });
+        } else {
+          lines.push(`-`);
+        }
+        lines.push(``);
       });
-      lines.push(``);
-    }
-
-    // Kas Lainnya
-    const nonAir = byrBln.filter(p => {
-      const mt = state.meteran.find(x => x.id === p.meteran_id);
-      if (!mt) return true;
-      const w = state.warga.find(wg => wg.id === mt.warga_id);
-      return w && w.alamat === 'SISTEM' && (!p.keterangan || !p.keterangan.startsWith('[PATUNGAN]'));
-    });
-
-    if (nonAir.length > 0) {
-      lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-      lines.push(`📥 *PENERIMAAN NON-AIR (KAS LAINNYA)*`);
-      lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-      nonAir.forEach((p, i) => {
-        const d = new Date(p.tanggal_bayar);
-        const dateStr = `${d.getDate()} ${MONTHS[d.getMonth()+1]} ${d.getFullYear()}`;
-        lines.push(`${i + 1}. ${dateStr} - *Rp ${fmtRp(p.jumlah_bayar).replace('Rp', '').trim()}* (${p.keterangan})`);
-      });
-      lines.push(``);
     }
 
     lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    lines.push(`${EMOJIS.pray()} _Laporan dibuat secara transparan untuk kenyamanan bersama seluruh warga. Terima kasih atas partisipasi aktif Anda!_`);
+    lines.push(`🙏 _Laporan dibuat secara transparan untuk kenyamanan bersama seluruh warga._`);
     lines.push(``);
     lines.push(`_Pengelola Kas Air: *${pengelola}*_`);
 
@@ -708,39 +733,93 @@ const LaporanKeuangan = () => {
                 <p className="text-sm text-slate-600 dark:text-slate-300">Periode: {reportType === 'bulanan' ? `${MONTHS[b]} ${t}` : `Tahun ${t}`}</p>
               </div>
 
-              {/* Summary Cards (same as on screen) */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center">
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Warga Aktif</p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{wargaAktif.length}</p>
-                </div>
-                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center">
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Tagihan Air</p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{fmtRp(tagihan)}</p>
-                </div>
-                <div className="p-4 rounded-xl border bg-emerald-50 dark:bg-emerald-950/10 text-center">
-                  <p className="text-xs font-bold text-emerald-600">Pendapatan Meteran</p>
-                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{fmtRp(pendapatanAir)}</p>
-                </div>
-                <div className="p-4 rounded-xl border bg-cyan-50 dark:bg-cyan-950/10 text-center">
-                  <p className="text-xs font-bold text-cyan-600">Kas Bersih Meteran</p>
-                  <p className="text-xl font-bold text-cyan-700 dark:text-cyan-400 mt-1">{fmtRp(kasBersihMeteran)}</p>
-                </div>
-                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center shadow-sm">
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Pemasukan</p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{fmtRp(masuk)}</p>
+                  <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{fmtRp(sumMasukCash)}</p>
                 </div>
-                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center">
+                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center shadow-sm">
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Pengeluaran Kas RT</p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{fmtRp(keluar)}</p>
+                  <p className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-1">{fmtRp(sumKeluarCash)}</p>
                 </div>
-                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center">
+                <div className="p-4 rounded-xl border bg-white dark:bg-slate-800 text-center shadow-sm">
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Saldo Kas RT</p>
-                  <p className={`text-xl font-bold mt-1 ${saldo >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{fmtRp(saldo)}</p>
+                  <p className={`text-xl font-bold mt-1 ${saldoAkhirCash >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{fmtRp(saldoAkhirCash)}</p>
                 </div>
-                <div className="p-4 rounded-xl border bg-amber-50 dark:bg-amber-950/10 text-center">
+                <div className="p-4 rounded-xl border bg-amber-50 dark:bg-amber-950/10 text-center shadow-sm">
                   <p className="text-xs font-bold text-amber-600">Kas Patungan</p>
                   <p className="text-xl font-bold text-amber-700 dark:text-amber-400 mt-1">{fmtRp(saldoPatungan)}</p>
+                </div>
+              </div>
+
+              {/* ENRICHED CONTENT: Payment Pills and Math Proof */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* Math Proof */}
+                <div className="border border-slate-300 dark:border-slate-600 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50 shadow-sm">
+                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-3 text-center border-b pb-2">Rincian Perhitungan Matematis Saldo Akhir</h3>
+                  <div className="space-y-1.5 text-xs font-mono text-slate-700 dark:text-slate-300">
+                    <div className="flex justify-between">
+                      <span>Saldo Bawaan (Awal)</span>
+                      <span>{fmtRp(saldoAwalCash)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                      <span>Total Pemasukan</span>
+                      <span>+ {fmtRp(sumMasukCash)}</span>
+                    </div>
+                    <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                      <span>Total Pengeluaran</span>
+                      <span>- {fmtRp(sumKeluarCash)}</span>
+                    </div>
+                    <div className="border-t border-slate-400 dark:border-slate-500 mt-2 pt-2 flex justify-between font-bold text-sm">
+                      <span>Saldo Akhir Kas RT</span>
+                      <span className={saldoAkhirCash < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                        = {fmtRp(saldoAkhirCash)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Pembayaran Warga */}
+                <div className="border border-slate-300 dark:border-slate-600 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50 shadow-sm">
+                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-3 text-center border-b pb-2">Ringkasan Pembayaran Warga</h3>
+                  {(() => {
+                    let countLunas = 0, countBelum = 0;
+                    let totalTunggakan = 0, totalDepositAll = 0;
+                    state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM').forEach(w => {
+                      const m = mtrBln.find(x => x.warga_id === w.id);
+                      const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+                      const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
+                      const depMasuk = getWargaDeposit(w.id, targetB, targetT, state);
+                      const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
+                      const kewajiban = tagihanVal + tunggakanLalu;
+                      const sisa = kewajiban - bayarVal - depMasuk;
+                      
+                      totalDepositAll += getWargaDeposit(w.id, b, t, state);
+                      totalTunggakan += tunggakanLalu;
+                      
+                      if (w.adalah_pengelola || sisa <= 0) countLunas++;
+                      else countBelum++;
+                    });
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-emerald-700 dark:text-emerald-400">🟢 Sudah Lunas / Lebih Bayar</span>
+                          <span className="font-bold bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 rounded text-emerald-800 dark:text-emerald-100">{countLunas} Warga</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-rose-700 dark:text-rose-400">🔴 Belum Lunas / Kurang Bayar</span>
+                          <span className="font-bold bg-rose-100 dark:bg-rose-900 px-2 py-0.5 rounded text-rose-800 dark:text-rose-100">{countBelum} Warga</span>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-slate-300 dark:border-slate-600 text-xs text-slate-600 dark:text-slate-400">
+                          Total Kas Tunggakan: <span className="font-bold text-slate-800 dark:text-slate-200">{fmtRp(totalTunggakan)}</span>
+                        </div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400">
+                          Total Titipan Uang (Lebih Bayar): <span className="font-bold text-slate-800 dark:text-slate-200">{fmtRp(totalDepositAll)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -762,14 +841,12 @@ const LaporanKeuangan = () => {
                 const m = mtrBln.find(x => x.warga_id === w.id);
                 const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
                 const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
-                const depMasuk = getWargaDeposit(w.id, b, t, state);
-                const tunggakanLalu = getWargaTunggakanLalu(w.id, b, t, state);
+                const depMasuk = getWargaDeposit(w.id, targetB, targetT, state);
+                const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
                 const kewajiban = tagihanVal + tunggakanLalu;
                 const sisa = kewajiban - bayarVal - depMasuk;
                 // Deposit setelah bulan ini = deposit untuk bulan depan
-                const nextM = b === 12 ? 1 : b + 1;
-                const nextY = b === 12 ? t + 1 : t;
-                const depositSetelah = getWargaDeposit(w.id, nextM, nextY, state);
+                const depositSetelah = getWargaDeposit(w.id, b, t, state);
                 
                 totalPemakaian += (m ? (m.pemakaian_m3 || m.pemakaian || 0) : 0);
                 totalTagihanAll += kewajiban;
@@ -842,13 +919,11 @@ const LaporanKeuangan = () => {
                     const m = mtrBln.find(x => x.warga_id === w.id);
                     const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
                     const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
-                    const depMasuk = getWargaDeposit(w.id, b, t, state);
-                    const tunggakanLalu = getWargaTunggakanLalu(w.id, b, t, state);
+                    const depMasuk = getWargaDeposit(w.id, targetB, targetT, state);
+                    const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
                     const kewajiban = tagihanVal + tunggakanLalu;
                     const sisa = kewajiban - bayarVal - depMasuk;
-                    const nextM = b === 12 ? 1 : b + 1;
-                    const nextY = b === 12 ? t + 1 : t;
-                    const depositSetelah = getWargaDeposit(w.id, nextM, nextY, state);
+                    const depositSetelah = getWargaDeposit(w.id, b, t, state);
 
                     let statusText = 'Lunas';
                     let statusColor = 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 dark:text-emerald-300';
@@ -1007,7 +1082,7 @@ const LaporanKeuangan = () => {
 
                 {/* Data Rows */}
                 {[
-                  ...byrBln.map(p => ({
+                  ...byrSiklus.map(p => ({
                     tanggal: p.tanggal_bayar,
                     tipe: p.keterangan && p.keterangan.startsWith('[PATUNGAN]') ? 'PATUNGAN' : 'PEMASUKAN',
                     warga: state.warga.find(x => x.id === p.warga_id)?.nama || 'Sistem',
@@ -1069,18 +1144,52 @@ const LaporanKeuangan = () => {
             </div>
           </div>
 
-          <div className="hidden print:block mt-12 px-4 pb-8 print:px-0 print:pb-0 print-signature-group">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 break-inside-avoid">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-3">Mengetahui</p>
-              <div className="h-16 border-b-2 border-slate-400 dark:border-slate-600 print:border-black"></div>
-              <p className="mt-4 text-sm font-bold text-slate-900 dark:text-white">Ketua RT</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-800">{state.settings?.nama_rt || 'RT 01 / RW 05'}</p>
+          {/* Rincian Perhitungan & Tanda Tangan Wrapper (Menghindari Pemisahan Halaman) */}
+          <div className="print-avoid-break mt-6">
+            {/* Rincian Perhitungan Matematis Saldo Akhir */}
+            <div className="mx-auto w-full max-w-md print:max-w-lg">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm print:border-slate-400 print:shadow-none">
+                <h4 className="text-center font-bold text-sm text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2.5 mb-3">
+                  Rincian Perhitungan Matematis Saldo Akhir
+                </h4>
+                <div className="space-y-2 font-mono text-xs text-slate-700 dark:text-slate-350">
+                  <div className="flex justify-between">
+                    <span>Saldo Bawaan (Awal)</span>
+                    <span className="font-bold">{saldoAwalCash < 0 ? '-' : ''}{fmtRp(Math.abs(saldoAwalCash))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Pemasukan</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">+ {fmtRp(masuk)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Pengeluaran</span>
+                    <span className="text-rose-600 dark:text-rose-450 font-bold">- {fmtRp(keluar)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2 font-bold text-slate-900 dark:text-white">
+                    <span>Saldo Akhir Kas RT</span>
+                    <span>= {saldoAkhirCash < 0 ? '-' : ''}{fmtRp(Math.abs(saldoAkhirCash))}</span>
+                  </div>
+                </div>
+                <p className="mt-4 text-[9px] text-center italic text-slate-500 dark:text-slate-450 print:text-slate-650">
+                  *Catatan: Jika angka Saldo Akhir bernilai minus, berarti Kas RT memiliki tanggungan/hutang berwujud defisit.
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 break-inside-avoid">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-3">Mengetahui</p>
-              <div className="h-16 border-b-2 border-slate-400 dark:border-slate-600 print:border-black"></div>
-              <p className="mt-4 text-sm font-bold text-slate-900 dark:text-white">Pengelola</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-800">{state.settings?.pengelola || 'Nama Pengelola'}</p>
+
+            {/* SIGNATURE BLOCK */}
+            <div className="hidden print:block mt-12 px-4 pb-8 print:px-0 print:pb-0 print-signature-group">
+              <div className="text-center p-4 break-inside-avoid">
+                <p className="text-xs text-slate-700">Mengetahui,</p>
+                <p className="text-xs font-bold text-slate-900">{state.settings?.jabatan_rt || 'Ketua RT 01 / RW 03'}</p>
+                <div className="h-16 mt-2"></div>
+                <div className="w-36 mx-auto border-b border-slate-400 print:border-black"></div>
+              </div>
+              <div className="text-center p-4 break-inside-avoid">
+                <p className="text-xs text-slate-700">Dibuat Oleh,</p>
+                <p className="text-xs font-bold text-slate-900">Pengelola Kas</p>
+                <div className="h-16 mt-2"></div>
+                <p className="text-xs font-bold text-slate-900 underline decoration-slate-400 print:decoration-black">{state.settings?.pengelola || 'Slamet Susanto'}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1217,18 +1326,22 @@ const LaporanKeuangan = () => {
             </div>
           </div>
 
-          <div className="hidden print:block mt-12 px-4 pb-8 print:px-0 print:pb-0 print-signature-group">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 break-inside-avoid">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-3">Mengetahui</p>
-              <div className="h-16 border-b-2 border-slate-400 dark:border-slate-600 print:border-black"></div>
-              <p className="mt-4 text-sm font-bold text-slate-900 dark:text-white">Ketua RT</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-800">{state.settings?.nama_rt || 'RT 01 / RW 05'}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 break-inside-avoid">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-3">Mengetahui</p>
-              <div className="h-16 border-b-2 border-slate-400 dark:border-slate-600 print:border-black"></div>
-              <p className="mt-4 text-sm font-bold text-slate-900 dark:text-white">Pengelola</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-800">{state.settings?.pengelola || 'Nama Pengelola'}</p>
+          {/* Tanda Tangan Wrapper (Menghindari Pemisahan Halaman) */}
+          <div className="print-avoid-break mt-6">
+            {/* SIGNATURE BLOCK */}
+            <div className="hidden print:block mt-12 px-4 pb-8 print:px-0 print:pb-0 print-signature-group">
+              <div className="text-center p-4 break-inside-avoid">
+                <p className="text-xs text-slate-700">Mengetahui,</p>
+                <p className="text-xs font-bold text-slate-900">{state.settings?.jabatan_rt || 'Ketua RT 01 / RW 03'}</p>
+                <div className="h-16 mt-2"></div>
+                <div className="w-36 mx-auto border-b border-slate-400 print:border-black"></div>
+              </div>
+              <div className="text-center p-4 break-inside-avoid">
+                <p className="text-xs text-slate-700">Dibuat Oleh,</p>
+                <p className="text-xs font-bold text-slate-900">Pengelola Kas</p>
+                <div className="h-16 mt-2"></div>
+                <p className="text-xs font-bold text-slate-900 underline decoration-slate-400 print:decoration-black">{state.settings?.pengelola || 'Slamet Susanto'}</p>
+              </div>
             </div>
           </div>
         </div>

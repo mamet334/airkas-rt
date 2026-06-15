@@ -27,12 +27,16 @@ const Dashboard = () => {
   const b = selectedMonth;
   const t = selectedYear;
 
+  // Target month/year for billing offset (b - 1)
+  const targetB = b === 1 ? 12 : b - 1;
+  const targetT = b === 1 ? t - 1 : t;
+
   // Warga Aktif
-  const wargaAktif = state.warga.filter(w => w.aktif);
+  const wargaAktif = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM');
 
   // Meteran & Pembayaran & Pengeluaran Bulan ini (Siklus 15-15)
-  const mtrBln = state.meteran.filter(m => m.bulan === b && m.tahun === t);
-  const byrBln = state.pembayaran.filter(p => p.bulan === b && p.tahun === t);
+  const mtrBln = state.meteran.filter(m => m.bulan === targetB && m.tahun === targetT);
+  const byrBln = filterByrBySiklus(state.pembayaran, b, t);
   const klrBln = filterKlrBySiklus(state.pengeluaran, b, t);
 
   const [detailModal, setDetailModal] = useState({ isOpen: false, title: '', type: '', items: [], total: 0 });
@@ -116,18 +120,14 @@ const Dashboard = () => {
   const totalMesinExpAll = state.rekap ? state.rekap.total_mesin_keluar : allMesinExpItems.reduce((s, k) => s + k.nominal, 0);
   const saldoPatungan = state.rekap ? state.rekap.kas_patungan_bersih : (totalPatunganAll - totalMesinExpAll);
 
-  // Belum Bayar
-  let nextM = b + 1;
-  let nextY = t;
-  if (nextM > 12) { nextM = 1; nextY = t + 1; }
-
+  // Belum Bayar (tunggakan setelah siklus berjalan selesai, yaitu bulan-bulan < b)
   const belumBayar = state.warga.map(w => {
     if (!w.aktif || w.alamat === 'SISTEM' || w.adalah_pengelola) return null;
     
-    const sisa = getWargaTunggakanLalu(w.id, nextM, nextY, state);
+    const sisa = getWargaTunggakanLalu(w.id, b, t, state);
     if (sisa <= 0) return null;
 
-    const mBln = state.meteran.find(m => m.warga_id === w.id && m.bulan === b && m.tahun === t);
+    const mBln = state.meteran.find(m => m.warga_id === w.id && m.bulan === targetB && m.tahun === targetT);
     const tagihanBulanIni = mBln ? mBln.total_tagihan : 0;
 
     return {
@@ -147,7 +147,7 @@ const Dashboard = () => {
       bm += 12;
       ty--;
     }
-    const mas = state.pembayaran.filter(p => p.bulan === bm && p.tahun === ty).reduce((s, p) => s + p.jumlah_bayar, 0);
+    const mas = filterByrBySiklus(state.pembayaran, bm, ty).reduce((s, p) => s + p.jumlah_bayar, 0);
     const kel = filterKlrBySiklus(state.pengeluaran, bm, ty).reduce((s, k) => s + k.jumlah, 0);
     chartData.push({ label: MONTHS[bm].substring(0, 3), masuk: mas, keluar: kel });
   }
@@ -205,7 +205,7 @@ const Dashboard = () => {
           </div>
           <div>
             <p className="text-xl font-bold text-slate-900 dark:text-white">{fmtRp(tagihan)}</p>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tagihan Air {MONTHS[b]}</p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tagihan Air {MONTHS[targetB]}</p>
           </div>
         </div>
 
