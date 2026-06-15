@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp, fmtDate, MONTHS } from '../utils/format';
-import { getCycleMonthYear } from '../utils/billing';
+import { getCycleMonthYear, filterKlrBySiklus } from '../utils/billing';
 import { 
   Download, 
   Plus, 
@@ -53,11 +53,7 @@ const Pengeluaran = () => {
   };
 
   // Filtered list of expenditures for the cycle
-  const list = [...state.pengeluaran]
-    .filter(k => {
-      const c = getCycleMonthYear(k.tanggal);
-      return c.month === b && c.year === t;
-    })
+  const list = filterKlrBySiklus([...state.pengeluaran], b, t)
     .sort((x, y) => new Date(y.tanggal) - new Date(x.tanggal));
 
   const totalExp = list.reduce((s, p) => s + p.jumlah, 0);
@@ -163,7 +159,7 @@ const Pengeluaran = () => {
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
             className="px-3 py-2 rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none"
           >
-            {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m}</option>)}
+            {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m} (15 {idx === 1 ? 'Des' : MONTHS[idx-1]} - 14 {m})</option>)}
           </select>
           <select
             value={selectedYear}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp, fmtDate, fmtDateTime, MONTHS } from '../utils/format';
-import { getCycleMonthYear, getWargaDeposit, getWargaTunggakanLalu } from '../utils/billing';
+import { getCycleMonthYear, getWargaDeposit, getWargaTunggakanLalu, filterByrBySiklus } from '../utils/billing';
 import { 
   Download, 
   Plus, 
@@ -228,6 +228,32 @@ const Pembayaran = () => {
       return;
     }
 
+    // ✅ ANTI DUPLIKAT: Cek apakah warga ini sudah punya patungan dengan keterangan sama di periode ini
+    const numWargaId = Number(patunganWarga);
+    const ketPatungan = patunganKet.trim();
+    const sudahAdaPatungan = state.pembayaran.find(p =>
+      p.warga_id === numWargaId &&
+      p.bulan === b &&
+      p.tahun === t &&
+      p.keterangan && p.keterangan.includes('[PATUNGAN]') &&
+      p.keterangan.includes(ketPatungan)
+    );
+
+    if (sudahAdaPatungan) {
+      const w = state.warga.find(x => String(x.id) === String(patunganWarga));
+      const dupMsg = `⚠️ DUPLIKAT DITOLAK: Patungan ${w ? w.nama : 'Warga'} sebesar ${fmtRp(jumlah)} untuk "${ketPatungan}" di ${MONTHS[b]} ${t} — sudah tercatat sebelumnya.`;
+      showToast(dupMsg, 'error');
+
+      // Catat penolakan di Audit Log agar admin bisa melacak
+      executeWrite({
+        table: 'audit',
+        action: 'insert',
+        data: { aksi: 'BLOCKED', detail: dupMsg, created_at: new Date().toISOString() },
+        logMsg: dupMsg
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       // Abaikan tanggal real-time untuk penentuan periode, gunakan filter UI
@@ -269,7 +295,6 @@ const Pembayaran = () => {
 
       // 2. Insert Payment record with [PATUNGAN]
       const payId = crypto.randomUUID();
-      const numWargaId = Number(patunganWarga);
       const payRecord = {
         id: payId,
         meteran_id: meterId,
@@ -279,7 +304,7 @@ const Pembayaran = () => {
         jumlah_bayar: jumlah,
         metode: patunganMetode,
         no_bukti: patunganNoBukti.trim() || null,
-        keterangan: `[PATUNGAN] ${patunganKet.trim()}`,
+        keterangan: `[PATUNGAN] ${ketPatungan}`,
         tanggal_bayar: new Date(patunganTgl + 'T10:00:00.000Z').toISOString()
       };
 
@@ -289,7 +314,7 @@ const Pembayaran = () => {
         table: 'pembayaran',
         action: 'insert',
         data: payRecord,
-        logMsg: `Mencatat patungan warga dari ${w ? w.nama : '-'} sebesar ${fmtRp(jumlah)}: ${patunganKet}`
+        logMsg: `Mencatat patungan warga dari ${w ? w.nama : '-'} sebesar ${fmtRp(jumlah)}: ${ketPatungan}`
       });
 
       setActiveModal(null);
@@ -491,7 +516,7 @@ const Pembayaran = () => {
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
             className="px-3 py-2 rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none"
           >
-            {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m}</option>)}
+            {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m} (15 {idx === 1 ? 'Des' : MONTHS[idx-1]} - 14 {m})</option>)}
           </select>
           <select
             value={selectedYear}

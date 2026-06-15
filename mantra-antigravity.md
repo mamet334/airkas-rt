@@ -1,5 +1,5 @@
 # MANTRA ANTIGRAVITY: AIRKAS RT
-**Update Terakhir:** 1 Juni 2026
+**Update Terakhir:** 15 Juni 2026
 
 ## 1. Info Sistem
 - **Stack:** React.js, Vite, Tailwind CSS, Supabase (Database Utama)
@@ -8,39 +8,31 @@
 - **URL Live:** https://airkas-rt.vercel.app
 
 ## 2. Status Terbaru (Selesai)
-1. **Sync Database `telepon`:** Kolom `telepon` sudah tersinkronisasi murni dengan Supabase, filter pembuangan nomor otomatis sudah dicabut.
-2. **Perbaikan Transaksi Kas Lain:** 
-   - Konversi ID `warga` menjadi Integer sebelum masuk Supabase.
-   - Sinkronisasi pengambilan `id` meteran dummy secara real-time untuk mencegah *UUID error* pada tabel pembayaran Supabase.
-3. **Bug Audit Log Menghilang:**
-   - Menghapus kolom `username` pada *payload* Audit Log karena Supabase menolak data kolom tidak dikenal, yang sebelumnya merusak proses save cloud. 
-4. **Desain Ulang Dashboard:** 
-   - Memisahkan **Pendapatan Air (A)** dan **Pemasukan Lain (B)**.
-   - Menambahkan catatan rumus transparan di tiap kartu Total Pemasukan & Saldo Kas RT.
-5. **Dashboard Interaktif & Optimasi Performa Jangka Panjang:**
-   - Seluruh kartu statistik dapat diklik untuk memunculkan Modal Detail transaksi beserta penjumlahan otomatis per-kategori.
-   - Mengalihkan perhitungan Saldo Total (Seluruh Waktu) ke Supabase RPC (`get_rekap_kas_total`) untuk akurasi mutlak.
-   - Membatasi penarikan riwayat transaksi di aplikasi HP (maksimal 2.000 data) agar aplikasi selamanya ringan tanpa harus merusak/menghapus data masa lalu.
-6. **Optimasi Laporan Keuangan (Cetak & Share):**
-   - Mengatasi *bug* Firefox memotong PDF dengan menyuntikkan `print:overflow-visible` secara global.
-   - Memperbaiki kotak tanda tangan (Ketua RT & Pengelola) yang hilang di halaman terakhir cetak PDF karena masalah *page-break*.
-   - Mengoptimalkan fitur **Bagi Gambar**: Gambar yang dihasilkan sekarang HANYA berisi ringkasan/infografis (tanpa log rincian panjang), sehingga hasil *capture* lebih rapi, pendek, dan siap kirim ke WhatsApp.
+1. **Penghapusan PWA & Mode Offline (100% Online System):**
+   - Service Worker (`sw.js`), `manifest.json`, serta seluruh mekanisme *Sync Queue* offline telah dicabut total. Aplikasi langsung mengambil dan menyimpan data segar dari Supabase secara *real-time*.
+2. **Sinkronisasi Siklus Keuangan 15-14:**
+   - Semua elemen *Dashboard* dan *Laporan Keuangan* telah disesuaikan agar membaca periode/siklus "Tanggal 15 (Bulan Sebelumnya) s/d Tanggal 14 (Bulan Berjalan)".
+3. **Pembersihan Logika Tagihan Air vs Kas Lain:**
+   - Memastikan bahwa *record* dummy (`warga.alamat === 'SISTEM'`) yang diciptakan untuk menerima Pemasukan Lain/Patungan secara permanen dieksklusi dari total **Tagihan Air**.
+4. **Perbaikan *Runtime Error* List Warga:**
+   - (Penting!) Logika iterasi daftar riwayat dan tagihan pada *Dashboard*, *Laporan Keuangan*, dan *Pembayaran* sekarang memindai **seluruh warga aktif** (`state.warga`), bukan lagi data bulanan meteran (`mtrBln`). Ini penting agar warga yang menunggak dari bulan lalu (dan belum ada data meteran bulan berjalan) tetap muncul.
 
-25: ## 3. SOP Wajib & Aturan Utama (Jangan Dilanggar!)
-26: 1. **Aturan Penentuan Periode (Siklus 15-15):** 
-27:    - Inisialisasi awal (*default buka aplikasi*) menggunakan rumus 15-15 (`getCycleMonthYear` di `billing.js`).
-28:    - **Transaksi (Terima Bayar, Patungan, Kas Lain) WAJIB PATUH pada UI Dropdown (`selectedMonth`/`b`).** DILARANG KERAS menggunakan tanggal transaksi (*real-time*) untuk menebak periode. Tanggal transaksi *hanya* untuk watermark/resi.
-29: 2. **Prosedur Deploy ke Vercel (PENTING untuk Andre Anastasya - andreanastasya798@gmail.com):**
-30:    - Dilarang keras *build* tanpa menyalin pembaruan *source code*!
-31:    - Wajib jalankan: `Copy-Item -Path "src\*" -Destination "..\vercel pam\airkas-vercel\airkas-react\src\" -Recurse -Force`
-32:    - Wajib jalankan: `Copy-Item -Path "public\*" -Destination "..\vercel pam\airkas-vercel\airkas-react\public\" -Recurse -Force`
-33:    - Baru lakukan `npm run build` dan `npx vercel --prod`.
-34: 
-35: ## 4. Fitur Tertunda (Bisa Dilanjutkan Kapan Saja)
-36: - **Saldo Awal / Modal Awal:** Menunggu kesiapan *Admin* untuk menambah kolom `saldo_awal` di tabel `settings` Supabase.
-37: 
-38: ## 5. Rencana Kerja Selanjutnya
-- Melanjutkan fitur operasional atau pelaporan tambahan jika diperlukan.
-- Memantau penggunaan fitur ekspor CSV jika perlu ada pengembangan lebih lanjut di kemudian hari.
-40: 
-41: *End of Mantra.*
+## 3. SOP Wajib & Aturan Utama (Jangan Dilanggar!)
+1. **Asimetri Filter Data (Pembayaran vs Pengeluaran):** 
+   - **Terima Bayar (`pembayaran`):** Harus difilter secara statis lewat variabel pilihan form/dropdown (`p.bulan === b && p.tahun === t`). Jangan gunakan filter *range* tanggal murni (seperti `filterByrBySiklus`), karena akan menghilangkan pembayaran yang dilakukan tepat di batas akhir (tanggal 15) namun ditujukan untuk tagihan bulan yang dipilih.
+   - **Pengeluaran (`pengeluaran`):** Karena tidak memiliki kolom spesifik `.bulan`, data pengeluaran **HARUS** difilter secara ketat berdasarkan tanggal aslinya menggunakan siklus 15-14 (`filterKlrBySiklus` atau `getCycleMonthYear(k.tanggal)`).
+2. **Kehati-hatian Pada Data Asinkron di React:**
+   - Saat memetakan data dengan operator relasional, SELALU gunakan *optional chaining* atau ternary check untuk `m` (seperti `m ? m.total_tagihan : 0`) guna mencegah *blank screen error*.
+3. **Audit Saldo jika Terjadi Kejanggalan Angka:**
+   - Jika pengguna melaporkan selisih "tombok" (kas minus), selalu periksa terlebih dahulu selisih dari dana Patungan Mesin (jika biaya lebih besar dari hasil pungutan) atau adanya suntikan "Kas Lain" yang bukan merupakan uang fisik. Gunakan *script* `cek_saldo.cjs` dan `dump_kas_lain.cjs` untuk audit mendalam.
+4. **Prosedur Deploy ke Vercel (PENTING untuk Andre Anastasya):**
+   - Hapus & Salin ulang *source code*: `Remove-Item -Path "..\vercel pam\airkas-vercel\airkas-react\src" -Recurse -Force; Copy-Item -Path "src" -Destination "..\vercel pam\airkas-vercel\airkas-react\src" -Recurse -Force`
+   - Salin file publik: `Copy-Item -Path "index.html" -Destination "..\vercel pam\airkas-vercel\airkas-react\index.html" -Force`
+   - Buka direktori Vercel: `Set-Location "..\vercel pam\airkas-vercel\airkas-react"`
+   - Jalankan rilis produksi: `npx vercel --prod --yes`
+
+## 4. Rencana Kerja Selanjutnya
+- Evaluasi rutin konsistensi pembukuan kas melalui cek berkala di *Audit Log* dan alat `cek_saldo.cjs`.
+- Pantau konektivitas di lapangan saat Ketua RT menarik/mengisi tagihan secara langsung menggunakan *browser*.
+
+*End of Mantra.*

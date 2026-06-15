@@ -43,10 +43,18 @@ export const fmtDateTime = (dateStr) => {
 // Cycle helper: get month/year from date
 export const getCycleMonthYear = (dateStr) => {
   const d = new Date(dateStr);
-  return {
-    month: d.getMonth() + 1,
-    year: d.getFullYear()
-  };
+  const day = d.getDate();
+  let month = d.getMonth() + 1;
+  let year = d.getFullYear();
+
+  if (day < 15) {
+    month = month - 1;
+    if (month === 0) {
+      month = 12;
+      year = year - 1;
+    }
+  }
+  return { month, year };
 };
 
 export const MONTHS = [

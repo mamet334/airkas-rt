@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDb } from '../store/DbContext';
 import { fmtRp, fmtDate, MONTHS } from '../utils/format';
-import { getCycleMonthYear, getWargaDeposit, getWargaTunggakanLalu } from '../utils/billing';
+import { getCycleMonthYear, getCycleDateRange, filterByrBySiklus, filterKlrBySiklus, getWargaDeposit, getWargaTunggakanLalu } from '../utils/billing';
 import { Printer, Download, MessageCircle, Image, Loader2 } from 'lucide-react';
 
 const EMOJIS = {
@@ -36,13 +36,12 @@ const LaporanKeuangan = () => {
   const b = selectedMonth;
   const t = selectedYear;
 
-  // --- MONTHLY DATA PREPARATION ---
+  // --- MONTHLY DATA PREPARATION (Siklus 15-15) ---
   const mtrBln = state.meteran.filter(m => m.bulan === b && m.tahun === t);
+  // Kembalikan ke filter bulan/tahun asli agar sinkron dengan data yang diinput lewat form
   const byrBln = state.pembayaran.filter(p => p.bulan === b && p.tahun === t);
-  const klrBln = state.pengeluaran.filter(k => {
-    const c = getCycleMonthYear(k.tanggal);
-    return c.month === b && c.year === t;
-  });
+  const klrBln = filterKlrBySiklus(state.pengeluaran, b, t);
+  const cycleRange = getCycleDateRange(b, t);
 
   const wargaAktif = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM');
   const [captureMode, setCaptureMode] = useState(false);
@@ -58,7 +57,8 @@ const LaporanKeuangan = () => {
   // Calculations for Monthly Print Cards
   const tagihan = mtrBln.reduce((s, m) => {
     const w = state.warga.find(x => x.id === m.warga_id);
-    if (w && w.adalah_pengelola) {
+    if (!w || w.alamat === 'SISTEM') return s;
+    if (w.adalah_pengelola) {
       const sudah = state.pembayaran.filter(p => p.meteran_id === m.id).reduce((sum, p) => sum + p.jumlah_bayar, 0);
       return s + sudah;
     }
@@ -98,11 +98,9 @@ const LaporanKeuangan = () => {
       const w = state.warga.find(wg => wg.id === x.warga_id);
       return x.bulan === m && x.tahun === t && w && w.alamat !== 'SISTEM';
     });
+    // Kembalikan ke filter bulan asli
     const pBln = state.pembayaran.filter(p => p.bulan === m && p.tahun === t);
-    const kBln = state.pengeluaran.filter(k => {
-      const c = getCycleMonthYear(k.tanggal);
-      return c.month === m && c.year === t;
-    });
+    const kBln = filterKlrBySiklus(state.pengeluaran, m, t);
 
     const mBlnTagihan = mBln.reduce((s, x) => {
       const w = state.warga.find(wg => wg.id === x.warga_id);
@@ -599,7 +597,7 @@ const LaporanKeuangan = () => {
                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
                 className="px-2 py-1.5 rounded-lg text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none"
               >
-                {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m}</option>)}
+                {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m} (15 {idx === 1 ? 'Des' : MONTHS[idx-1]} - 14 {m})</option>)}
               </select>
             )}
             <select
@@ -660,7 +658,7 @@ const LaporanKeuangan = () => {
           <div className="print-header text-center py-6 border-b-4 double border-slate-900/60">
             <h2 className="text-xl font-bold text-slate-900 uppercase">Laporan Keuangan Bulanan Air Bersih</h2>
             <h3 className="text-md font-bold text-teal-800 uppercase mt-1">{state.settings?.nama_rt || 'KAS AIR RT / RW'}</h3>
-            <p className="text-xs text-slate-600 mt-0.5">Periode Bulan: {MONTHS[b]} {t}</p>
+            <p className="text-xs text-slate-600 mt-0.5">Periode: {MONTHS[b]} {t} (Siklus {cycleRange.start.split('-').reverse().join('/')} s/d {cycleRange.end.split('-').reverse().join('/')})</p>
             <p className="text-xs text-slate-600 mt-1">Pengelola: {state.settings?.pengelola || 'Nama Pengelola'}</p>
             <p className="text-xs text-slate-600 mt-0.5">Alamat: {state.settings?.alamat_rt || 'Alamat RT tidak tersedia'}</p>
           </div>
@@ -758,24 +756,27 @@ const LaporanKeuangan = () => {
             {(() => {
               let countLunas = 0, countSebagian = 0, countBelum = 0, totalPemakaian = 0;
               let totalTagihanAll = 0, totalBayarAll = 0, totalTunggakan = 0, totalDepositAll = 0;
-              mBlnActiveSorted.forEach(m => {
-                const w = state.warga.find(x => x.id === m.warga_id);
-                if (!w) return;
-                const tagihanVal = w.adalah_pengelola ? 0 : m.total_tagihan;
-                const bayarVal = byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0);
-                const depMasuk = getWargaDeposit(m.warga_id, b, t, state);
-                const tunggakanLalu = getWargaTunggakanLalu(m.warga_id, b, t, state);
+              const wargaActiveSorted = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM').sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999));
+              
+              wargaActiveSorted.forEach(w => {
+                const m = mtrBln.find(x => x.warga_id === w.id);
+                const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+                const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
+                const depMasuk = getWargaDeposit(w.id, b, t, state);
+                const tunggakanLalu = getWargaTunggakanLalu(w.id, b, t, state);
                 const kewajiban = tagihanVal + tunggakanLalu;
                 const sisa = kewajiban - bayarVal - depMasuk;
                 // Deposit setelah bulan ini = deposit untuk bulan depan
                 const nextM = b === 12 ? 1 : b + 1;
                 const nextY = b === 12 ? t + 1 : t;
-                const depositSetelah = getWargaDeposit(m.warga_id, nextM, nextY, state);
-                totalPemakaian += (m.pemakaian_m3 || m.pemakaian || 0);
+                const depositSetelah = getWargaDeposit(w.id, nextM, nextY, state);
+                
+                totalPemakaian += (m ? (m.pemakaian_m3 || m.pemakaian || 0) : 0);
                 totalTagihanAll += kewajiban;
                 totalBayarAll += bayarVal;
                 totalTunggakan += tunggakanLalu;
                 totalDepositAll += depositSetelah;
+                
                 if (w.adalah_pengelola || sisa <= 0) countLunas++;
                 else if (bayarVal > 0 || depMasuk > 0) countSebagian++;
                 else countBelum++;
@@ -835,74 +836,74 @@ const LaporanKeuangan = () => {
                 </div>
 
                 {/* Data Rows */}
-                {mBlnActiveSorted.map((m, idx) => {
-                  const w = state.warga.find(x => x.id === m.warga_id);
-                  if (!w) return null;
-                  
-                  const tagihanVal = w.adalah_pengelola ? 0 : m.total_tagihan;
-                  const bayarVal = byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0);
-                  const depMasuk = getWargaDeposit(m.warga_id, b, t, state);
-                  const tunggakanLalu = getWargaTunggakanLalu(m.warga_id, b, t, state);
-                  const kewajiban = tagihanVal + tunggakanLalu;
-                  const sisa = kewajiban - bayarVal - depMasuk;
-                  // Deposit setelah bulan ini = deposit untuk bulan depan
-                  const nextM = b === 12 ? 1 : b + 1;
-                  const nextY = b === 12 ? t + 1 : t;
-                  const depositSetelah = getWargaDeposit(m.warga_id, nextM, nextY, state);
+                {(() => {
+                  const wargaActiveSorted = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM').sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999));
+                  return wargaActiveSorted.map((w, idx) => {
+                    const m = mtrBln.find(x => x.warga_id === w.id);
+                    const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+                    const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
+                    const depMasuk = getWargaDeposit(w.id, b, t, state);
+                    const tunggakanLalu = getWargaTunggakanLalu(w.id, b, t, state);
+                    const kewajiban = tagihanVal + tunggakanLalu;
+                    const sisa = kewajiban - bayarVal - depMasuk;
+                    const nextM = b === 12 ? 1 : b + 1;
+                    const nextY = b === 12 ? t + 1 : t;
+                    const depositSetelah = getWargaDeposit(w.id, nextM, nextY, state);
 
-                  let statusText = 'Lunas';
-                  let statusColor = 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 dark:text-emerald-300';
-                  
-                  if (w.adalah_pengelola) {
-                    statusText = 'Pengelola';
-                  } else if (sisa <= 0) {
-                    if (sisa < 0) {
-                      statusText = `Lunas (+${fmtRp(Math.abs(sisa)).replace('Rp', '').trim()})`;
+                    let statusText = 'Lunas';
+                    let statusColor = 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 dark:text-emerald-300';
+                    
+                    if (w.adalah_pengelola) {
+                      statusText = 'Pengelola';
+                    } else if (sisa <= 0) {
+                      if (sisa < 0) {
+                        statusText = `Lunas (+${fmtRp(Math.abs(sisa)).replace('Rp', '').trim()})`;
+                      } else {
+                        statusText = 'Lunas';
+                      }
                     } else {
-                      statusText = 'Lunas';
+                      statusText = `Sisa ${fmtRp(sisa)}`;
+                      statusColor = (bayarVal > 0 || depMasuk > 0)
+                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-750 dark:text-amber-300'
+                        : 'bg-rose-100 dark:bg-rose-950/60 text-rose-755 dark:text-rose-350';
                     }
-                  } else {
-                    statusText = `Sisa ${fmtRp(sisa)}`;
-                    statusColor = (bayarVal > 0 || depMasuk > 0)
-                      ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-750 dark:text-amber-300'
-                      : 'bg-rose-100 dark:bg-rose-950/60 text-rose-755 dark:text-rose-350';
-                  }
 
-                  return (
-                    <div key={m.id} className="grid grid-cols-10 gap-1.5 text-center text-[11px] font-semibold items-center">
-                      <div className="p-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 rounded-xl font-mono">
-                        {w.no_meter || '-'}
+                    return (
+                      <div key={w.id} className="grid grid-cols-10 gap-1.5 text-center text-[11px] font-semibold items-center">
+                        <div className="p-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 rounded-xl font-mono">
+                          {w.no_meter || '-'}
+                        </div>
+                        <div className="p-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 rounded-xl text-left pl-3 font-bold truncate">
+                          {idx + 1}. {w.nama}
+                        </div>
+                        <div className="p-2 bg-slate-50/60 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 rounded-xl font-mono">
+                          {m ? (m.meter_lalu ?? '-') : '-'}
+                        </div>
+                        <div className="p-2 bg-slate-50/60 dark:bg-slate-800/30 text-slate-700 dark:text-slate-200 rounded-xl font-mono font-bold">
+                          {m ? (m.meter_sekarang ?? '-') : '-'}
+                        </div>
+                        <div className="p-2 bg-teal-50/40 dark:bg-teal-950/20 text-teal-700 dark:text-teal-300 rounded-xl font-mono">
+                          {m ? (m.pemakaian_m3 || m.pemakaian || 0) : 0} m³
+                        </div>
+                        <div className="p-2 bg-amber-50/40 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 rounded-xl font-mono font-bold">
+                          {fmtRp(tagihanVal)}
+                        </div>
+                        <div className={`p-2 rounded-xl font-mono ${tunggakanLalu > 0 ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 font-bold' : 'bg-slate-50/40 dark:bg-slate-800/20 text-slate-400'}`}>
+                          {tunggakanLalu > 0 ? fmtRp(tunggakanLalu) : '-'}
+                        </div>
+                        <div className={`p-2 rounded-xl font-mono ${depositSetelah > 0 ? 'bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 font-bold' : 'bg-slate-50/40 dark:bg-slate-800/20 text-slate-400'}`}>
+                          {depositSetelah > 0 ? fmtRp(depositSetelah) : '-'}
+                        </div>
+                        <div className="p-2 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 rounded-xl font-mono font-bold">
+                          {fmtRp(bayarVal)}
+                        </div>
+                        <div className={`p-2 rounded-xl font-bold text-[10px] truncate ${statusColor}`}>
+                          {statusText}
+                        </div>
                       </div>
-                      <div className="p-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/60 text-slate-900 dark:text-slate-100 rounded-xl text-left pl-3 font-bold truncate">
-                        {idx + 1}. {w.nama}
-                      </div>
-                      <div className="p-2 bg-slate-50/60 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 rounded-xl font-mono">
-                        {m.meter_lalu ?? '-'}
-                      </div>
-                      <div className="p-2 bg-slate-50/60 dark:bg-slate-800/30 text-slate-700 dark:text-slate-200 rounded-xl font-mono font-bold">
-                        {m.meter_sekarang ?? '-'}
-                      </div>
-                      <div className="p-2 bg-teal-50/40 dark:bg-teal-950/20 text-teal-700 dark:text-teal-300 rounded-xl font-mono">
-                        {m.pemakaian_m3 || m.pemakaian || 0} m³
-                      </div>
-                      <div className="p-2 bg-amber-50/40 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 rounded-xl font-mono font-bold">
-                        {fmtRp(tagihanVal)}
-                      </div>
-                      <div className={`p-2 rounded-xl font-mono ${tunggakanLalu > 0 ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 font-bold' : 'bg-slate-50/40 dark:bg-slate-800/20 text-slate-400'}`}>
-                        {tunggakanLalu > 0 ? fmtRp(tunggakanLalu) : '-'}
-                      </div>
-                      <div className={`p-2 rounded-xl font-mono ${depositSetelah > 0 ? 'bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 font-bold' : 'bg-slate-50/40 dark:bg-slate-800/20 text-slate-400'}`}>
-                        {depositSetelah > 0 ? fmtRp(depositSetelah) : '-'}
-                      </div>
-                      <div className="p-2 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 rounded-xl font-mono font-bold">
-                        {fmtRp(bayarVal)}
-                      </div>
-                      <div className={`p-2 rounded-xl font-bold text-[10px] truncate ${statusColor}`}>
-                        {statusText}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
           </div>

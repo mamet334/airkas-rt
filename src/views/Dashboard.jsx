@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDb } from '../store/DbContext';
 import { fmtRp, MONTHS } from '../utils/format';
-import { getCycleMonthYear, getWargaDeposit, getWargaTunggakanLalu } from '../utils/billing';
+import { getCycleMonthYear, filterByrBySiklus, filterKlrBySiklus, getWargaDeposit, getWargaTunggakanLalu } from '../utils/billing';
 import { 
   Users, 
   FileText, 
@@ -30,19 +30,19 @@ const Dashboard = () => {
   // Warga Aktif
   const wargaAktif = state.warga.filter(w => w.aktif);
 
-  // Meteran & Pembayaran & Pengeluaran Bulan ini
+  // Meteran & Pembayaran & Pengeluaran Bulan ini (Siklus 15-15)
   const mtrBln = state.meteran.filter(m => m.bulan === b && m.tahun === t);
   const byrBln = state.pembayaran.filter(p => p.bulan === b && p.tahun === t);
-  const klrBln = state.pengeluaran.filter(k => {
-    const c = getCycleMonthYear(k.tanggal);
-    return c.month === b && c.year === t;
-  });
+  const klrBln = filterKlrBySiklus(state.pengeluaran, b, t);
 
   const [detailModal, setDetailModal] = useState({ isOpen: false, title: '', type: '', items: [], total: 0 });
   const openDetail = (title, type, items, total) => setDetailModal({ isOpen: true, title, type, items, total });
 
   // 1. Tagihan Air
-  const tagihanItems = mtrBln.map(m => {
+  const tagihanItems = mtrBln.filter(m => {
+    const w = state.warga.find(x => x.id === m.warga_id);
+    return w && w.alamat !== 'SISTEM';
+  }).map(m => {
     const w = state.warga.find(x => x.id === m.warga_id);
     let currTagihan = m.total_tagihan;
     if (w && w.adalah_pengelola) {
@@ -117,14 +117,27 @@ const Dashboard = () => {
   const saldoPatungan = state.rekap ? state.rekap.kas_patungan_bersih : (totalPatunganAll - totalMesinExpAll);
 
   // Belum Bayar
-  const belumBayar = mtrBln.filter(m => {
-    const w = state.warga.find(x => x.id === m.warga_id);
-    if (w && w.adalah_pengelola) return false;
-    const sudah = state.pembayaran.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0);
-    const dep = getWargaDeposit(m.warga_id, b, t, state);
-    const tunggakanLalu = getWargaTunggakanLalu(m.warga_id, b, t, state);
-    return (sudah + dep) < (m.total_tagihan + tunggakanLalu);
-  });
+  let nextM = b + 1;
+  let nextY = t;
+  if (nextM > 12) { nextM = 1; nextY = t + 1; }
+
+  const belumBayar = state.warga.map(w => {
+    if (!w.aktif || w.alamat === 'SISTEM' || w.adalah_pengelola) return null;
+    
+    const sisa = getWargaTunggakanLalu(w.id, nextM, nextY, state);
+    if (sisa <= 0) return null;
+
+    const mBln = state.meteran.find(m => m.warga_id === w.id && m.bulan === b && m.tahun === t);
+    const tagihanBulanIni = mBln ? mBln.total_tagihan : 0;
+
+    return {
+      id: w.id,
+      nama: w.nama,
+      no_meter: w.no_meter,
+      tagihanBulanIni,
+      sisa
+    };
+  }).filter(Boolean);
 
   // 6 Months Chart Data
   const chartData = [];
@@ -135,10 +148,7 @@ const Dashboard = () => {
       ty--;
     }
     const mas = state.pembayaran.filter(p => p.bulan === bm && p.tahun === ty).reduce((s, p) => s + p.jumlah_bayar, 0);
-    const kel = state.pengeluaran.filter(k => {
-      const c = getCycleMonthYear(k.tanggal);
-      return c.month === bm && c.year === ty;
-    }).reduce((s, k) => s + k.jumlah, 0);
+    const kel = filterKlrBySiklus(state.pengeluaran, bm, ty).reduce((s, k) => s + k.jumlah, 0);
     chartData.push({ label: MONTHS[bm].substring(0, 3), masuk: mas, keluar: kel });
   }
   const maxVal = Math.max(1, ...chartData.map(d => Math.max(d.masuk, d.keluar)));
@@ -163,7 +173,7 @@ const Dashboard = () => {
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
             className="px-3 py-2 rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-teal-500"
           >
-            {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m}</option>)}
+            {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m} (15 {idx === 1 ? 'Des' : MONTHS[idx-1]} - 14 {m})</option>)}
           </select>
           <select 
             value={selectedYear} 
@@ -365,27 +375,19 @@ const Dashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
-                  {belumBayar.map(m => {
-                    const w = state.warga.find(x => x.id === m.warga_id);
-                    const sudah = state.pembayaran.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0);
-                    const dep = getWargaDeposit(m.warga_id, b, t, state);
-                    const tunggakanLalu = getWargaTunggakanLalu(m.warga_id, b, t, state);
-                    const sisa = m.total_tagihan + tunggakanLalu - sudah - dep;
-                    
-                    return (
-                      <tr key={m.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 text-slate-700 dark:text-slate-300">
-                        <td className="p-3 font-semibold">{w ? w.nama : '-'}</td>
-                        <td className="p-3"><code className="font-mono text-cyan-600 dark:text-cyan-400">{w ? w.no_meter : '-'}</code></td>
-                        <td className="p-3 text-right font-semibold">{fmtRp(m.total_tagihan)}</td>
-                        <td className="p-3 text-right">
-                          <span className="inline-flex items-center gap-1 font-bold text-rose-600 dark:text-rose-400">
-                            <AlertCircle size={12} />
-                            {fmtRp(sisa)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {belumBayar.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 text-slate-700 dark:text-slate-300">
+                      <td className="p-3 font-semibold">{item.nama}</td>
+                      <td className="p-3"><code className="font-mono text-cyan-600 dark:text-cyan-400">{item.no_meter}</code></td>
+                      <td className="p-3 text-right font-semibold">{item.tagihanBulanIni > 0 ? fmtRp(item.tagihanBulanIni) : '-'}</td>
+                      <td className="p-3 text-right">
+                        <span className="inline-flex items-center gap-1 font-bold text-rose-600 dark:text-rose-400">
+                          <AlertCircle size={12} />
+                          {fmtRp(item.sisa)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             )}

@@ -6,7 +6,7 @@ import { fmtRp } from '../utils/format';
 import { Save, Lock, Download, Upload, RotateCcw, AlertTriangle, Bell, BellOff, Key, Database } from 'lucide-react';
 
 const Pengaturan = () => {
-  const { state, isAdminUnlocked, executeWrite, updateAdminPin, queueLength, syncQueue, clearQueue } = useDb();
+  const { state, isAdminUnlocked, executeWrite, updateAdminPin } = useDb();
   const { showToast, showAlert, requestNotificationPermission, showBrowserNotification, subscribeToPushNotifications, unsubscribePushNotifications, pushSubscription, pushSupported } = useNotification();
 
   // General Profile State
@@ -224,29 +224,6 @@ const Pengaturan = () => {
     e.target.value = ''; // Reset input element
   };
 
-  // RESET TOTAL DATABASE
-  const handleManualSync = async () => {
-    if (!window.navigator.onLine) {
-      showToast('Tidak ada koneksi internet saat ini.', 'warning');
-      return;
-    }
-    await syncQueue();
-  };
-
-  const handleClearQueue = () => {
-    if (queueLength === 0) {
-      showToast('Tidak ada antrean sinkronisasi untuk dibersihkan.', 'info');
-      return;
-    }
-    showAlert({
-      title: 'Bersihkan Antrean Offline?',
-      message: 'Ini akan menghapus semua aksi yang tersimpan dalam antrean sinkronisasi offline. Data lokal tetap dipertahankan tetapi perubahan belum tersinkronisasi akan hilang.',
-      type: 'danger',
-      onConfirm: () => {
-        clearQueue();
-      }
-    });
-  };
 
   const handleResetData = () => {
     showAlert({
@@ -506,41 +483,6 @@ const Pengaturan = () => {
               </button>
             </div>
 
-            {/* Sync Queue Controls */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Antrean Sinkronisasi Offline</p>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{queueLength} item tersimpan</p>
-                </div>
-                <div className="text-xs px-2 py-1 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
-                  {queueLength === 0 ? 'Kosong' : 'Menunggu'}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleManualSync}
-                className="px-4 py-2.5 w-full rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
-              >
-                <RotateCcw size={14} />
-                Sinkronisasi Sekarang
-              </button>
-              {isAdminUnlocked ? (
-                <button
-                  type="button"
-                  onClick={handleClearQueue}
-                  className="px-4 py-2.5 w-full rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <AlertTriangle size={14} />
-                  Bersihkan Antrean Offline
-                </button>
-              ) : (
-                <div className="px-4 py-2.5 w-full rounded-xl text-xs font-semibold text-slate-400 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 cursor-not-allowed">
-                  <Lock size={14} />
-                  Buka Kunci Admin untuk membersihkan antrean
-                </div>
-              )}
-            </div>
 
             {/* Reset Database */}
             {isAdminUnlocked ? (
