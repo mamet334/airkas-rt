@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDb } from '../store/DbContext';
 import { fmtRp, fmtDate, MONTHS } from '../utils/format';
 import { getCycleMonthYear, getCycleDateRange, filterByrBySiklus, filterKlrBySiklus, getWargaDeposit, getWargaTunggakanLalu } from '../utils/billing';
+import { getWargaBillingSummary } from '../utils/billingEngine';
 import { Printer, Download, MessageCircle, Image, Loader2 } from 'lucide-react';
 
 const EMOJIS = {
@@ -341,13 +342,9 @@ const LaporanKeuangan = () => {
 
     wargaActiveSorted.forEach(w => {
       const m = mtrBln.find(x => x.warga_id === w.id);
-      const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+      const rawTagihan = m ? m.total_tagihan : 0;
       const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
-      const dep = getWargaDeposit(w.id, targetB, targetT, state);
-      const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
-      
-      const kewajiban = tagihanVal + tunggakanLalu;
-      const sisa = kewajiban - bayarVal - dep;
+      const { sisa } = getWargaBillingSummary(w.id, rawTagihan, bayarVal, targetB, targetT, state);
 
       if (w.adalah_pengelola) {
         lunasList.push(`${w.nama} (Pengelola)`);
@@ -788,12 +785,9 @@ const LaporanKeuangan = () => {
                     let totalTunggakan = 0, totalDepositAll = 0;
                     state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM').forEach(w => {
                       const m = mtrBln.find(x => x.warga_id === w.id);
-                      const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+                      const rawTagihan = m ? m.total_tagihan : 0;
                       const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
-                      const depMasuk = getWargaDeposit(w.id, targetB, targetT, state);
-                      const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
-                      const kewajiban = tagihanVal + tunggakanLalu;
-                      const sisa = kewajiban - bayarVal - depMasuk;
+                      const { tunggakanLalu, sisa } = getWargaBillingSummary(w.id, rawTagihan, bayarVal, targetB, targetT, state);
                       
                       totalDepositAll += getWargaDeposit(w.id, b, t, state);
                       totalTunggakan += tunggakanLalu;
@@ -839,12 +833,9 @@ const LaporanKeuangan = () => {
               
               wargaActiveSorted.forEach(w => {
                 const m = mtrBln.find(x => x.warga_id === w.id);
-                const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+                const rawTagihan = m ? m.total_tagihan : 0;
                 const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
-                const depMasuk = getWargaDeposit(w.id, targetB, targetT, state);
-                const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
-                const kewajiban = tagihanVal + tunggakanLalu;
-                const sisa = kewajiban - bayarVal - depMasuk;
+                const { deposit: depMasuk, tunggakanLalu, kewajiban, sisa } = getWargaBillingSummary(w.id, rawTagihan, bayarVal, targetB, targetT, state);
                 // Deposit setelah bulan ini = deposit untuk bulan depan
                 const depositSetelah = getWargaDeposit(w.id, b, t, state);
                 
@@ -917,12 +908,9 @@ const LaporanKeuangan = () => {
                   const wargaActiveSorted = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM').sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999));
                   return wargaActiveSorted.map((w, idx) => {
                     const m = mtrBln.find(x => x.warga_id === w.id);
-                    const tagihanVal = w.adalah_pengelola ? 0 : (m ? m.total_tagihan : 0);
+                    const rawTagihan = m ? m.total_tagihan : 0;
                     const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
-                    const depMasuk = getWargaDeposit(w.id, targetB, targetT, state);
-                    const tunggakanLalu = getWargaTunggakanLalu(w.id, targetB, targetT, state);
-                    const kewajiban = tagihanVal + tunggakanLalu;
-                    const sisa = kewajiban - bayarVal - depMasuk;
+                    const { deposit: depMasuk, tunggakanLalu, kewajiban, sisa } = getWargaBillingSummary(w.id, rawTagihan, bayarVal, targetB, targetT, state);
                     const depositSetelah = getWargaDeposit(w.id, b, t, state);
 
                     let statusText = 'Lunas';

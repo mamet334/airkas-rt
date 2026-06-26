@@ -90,7 +90,8 @@ const PencatatanMeteran = () => {
       return;
     }
 
-    // Check for negative usage
+    // Check for negative usage and extreme spikes
+    let hasExtremeUsage = false;
     for (const r of filledReadings) {
       const metSek = Number(r.meter_sekarang_input);
       if (isNaN(metSek) || metSek < 0) {
@@ -101,42 +102,55 @@ const PencatatanMeteran = () => {
         showToast(`Meter sekarang warga ${r.nama} (${metSek}) tidak boleh kurang dari meter lalu (${r.meter_lalu})!`, 'error');
         return;
       }
+      if (metSek - r.meter_lalu > 150) {
+        hasExtremeUsage = true;
+      }
     }
+
+    const confirmMsg = hasExtremeUsage
+      ? `PERINGATAN: Terdapat lonjakan pemakaian air tidak wajar (>150 m³). Pastikan tidak ada salah ketik. Tetap simpan pencatatan untuk ${filledReadings.length} warga?`
+      : `Simpan pencatatan meteran untuk ${filledReadings.length} warga pada periode ${MONTHS[b]} ${t}?`;
 
     showAlert({
       title: 'Simpan Meteran',
-      message: `Simpan pencatatan meteran untuk ${filledReadings.length} warga pada periode ${MONTHS[b]} ${t}?`,
-      type: 'warning',
+      message: confirmMsg,
+      type: hasExtremeUsage ? 'danger' : 'warning',
       onConfirm: async () => {
         let savedCount = 0;
-        for (const r of filledReadings) {
-          const metSek = Number(r.meter_sekarang_input);
-          const pemakaian = metSek - r.meter_lalu;
-          const totalTagihan = r.adalah_pengelola ? 0 : (pemakaian * r.tarif_per_m3);
+        try {
+          for (const r of filledReadings) {
+            const metSek = Number(r.meter_sekarang_input);
+            const pemakaian = metSek - r.meter_lalu;
+            const totalTagihan = r.adalah_pengelola ? 0 : (pemakaian * r.tarif_per_m3);
 
-          const meteranRecord = {
-            id: r.id,
-            warga_id: r.warga_id,
-            bulan: b,
-            tahun: t,
-            meter_lalu: r.meter_lalu,
-            meter_sekarang: metSek,
-            pemakaian: pemakaian,
-            tarif_per_m3: r.tarif_per_m3,
-            biaya_admin: 0,
-            total_tagihan: totalTagihan
-          };
+            const meteranRecord = {
+              id: r.id,
+              warga_id: r.warga_id,
+              bulan: b,
+              tahun: t,
+              meter_lalu: r.meter_lalu,
+              meter_sekarang: metSek,
+              pemakaian: pemakaian,
+              tarif_per_m3: r.tarif_per_m3,
+              biaya_admin: 0,
+              total_tagihan: totalTagihan
+            };
 
-          await executeWrite({
-            table: 'meteran',
-            action: r.isExisting ? 'update' : 'insert',
-            id: r.id,
-            data: meteranRecord,
-            logMsg: `Catat meteran ${r.nama}: Lalu ${r.meter_lalu}, Sekarang ${metSek}, Pakai ${pemakaian} m3, Tagihan ${fmtRp(totalTagihan)}`
-          });
-          savedCount++;
+            await executeWrite({
+              table: 'meteran',
+              action: r.isExisting ? 'update' : 'insert',
+              id: r.id,
+              data: meteranRecord,
+              logMsg: `Catat meteran ${r.nama}: Lalu ${r.meter_lalu}, Sekarang ${metSek}, Pakai ${pemakaian} m3, Tagihan ${fmtRp(totalTagihan)}`
+            });
+            savedCount++;
+          }
+          showToast(`Berhasil menyimpan ${savedCount} catatan meteran!`, 'success');
+        } catch (e) {
+          if (savedCount > 0) {
+            showToast(`Menyimpan ${savedCount} catatan, tetapi gagal melanjutkan sisanya.`, 'warning');
+          }
         }
-        showToast(`Berhasil menyimpan ${savedCount} catatan meteran!`, 'success');
       }
     });
   };

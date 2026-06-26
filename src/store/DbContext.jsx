@@ -304,7 +304,7 @@ export const DbProvider = ({ children }) => {
       console.warn('Gagal nulis ke Supabase:', err);
       showToast('Gagal menyimpan data ke server. Pastikan koneksi internet stabil.', 'error');
       fetchData(true); // Re-fetch to sync actual state after failed optimistic update
-      return returnedId;
+      throw err; // Stop caller execution on failure to maintain integrity
     }
   }, [supabase, isAdminUnlocked, showToast, fetchData]);
 

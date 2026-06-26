@@ -32,6 +32,7 @@ const Pengeluaran = () => {
 
   // Add modal state
   const [isAdding, setIsAdding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -67,30 +68,37 @@ const Pengeluaran = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (isSaving) return;
+    
     const jumlah = Number(formData.jumlah);
-    if (!formData.keterangan.trim() || isNaN(jumlah) || jumlah <= 0) {
+    if (!formData.tanggal || !formData.keterangan.trim() || isNaN(jumlah) || jumlah <= 0) {
       showToast('Harap lengkapi isian wajib dengan benar', 'error');
       return;
     }
 
-    const expRecord = {
-      id: crypto.randomUUID(),
-      tanggal: new Date(formData.tanggal + 'T12:00:00.000Z').toISOString(),
-      kategori: formData.kategori,
-      keterangan: formData.keterangan.trim(),
-      jumlah: jumlah,
-      no_bukti: formData.no_bukti.trim() || null
-    };
+    setIsSaving(true);
+    try {
+      const expRecord = {
+        id: crypto.randomUUID(),
+        tanggal: new Date(formData.tanggal + 'T12:00:00.000Z').toISOString(),
+        kategori: formData.kategori,
+        keterangan: formData.keterangan.trim(),
+        jumlah: jumlah,
+        no_bukti: formData.no_bukti.trim() || null
+      };
 
-    await executeWrite({
-      table: 'pengeluaran',
-      action: 'insert',
-      data: expRecord,
-      logMsg: `Input pengeluaran: ${formData.kategori} - ${formData.keterangan} senilai ${fmtRp(jumlah)}`
-    });
+      await executeWrite({
+        table: 'pengeluaran',
+        action: 'insert',
+        data: expRecord,
+        logMsg: `Input pengeluaran: ${formData.kategori} - ${formData.keterangan} senilai ${fmtRp(jumlah)}`
+      });
 
-    setIsAdding(false);
-    resetForm();
+      setIsAdding(false);
+      resetForm();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = (p) => {

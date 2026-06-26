@@ -3,6 +3,7 @@ import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp, fmtDate, fmtDateTime, MONTHS } from '../utils/format';
 import { getCycleMonthYear, getWargaDeposit, getWargaTunggakanLalu, filterByrBySiklus } from '../utils/billing';
+import { getWargaBillingSummary, evaluatePaymentStatus } from '../utils/billingEngine';
 import { 
   Download, 
   Plus, 
@@ -58,24 +59,12 @@ const Pembayaran = () => {
     const w = state.warga.find(x => x.id === m.warga_id);
     if (!w || w.alamat === 'SISTEM') return null;
 
-    const tagihan = w.adalah_pengelola ? 0 : m.total_tagihan;
     const sudah = byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0);
-    const dep = getWargaDeposit(m.warga_id, b, t, state);
-    const tunggakanLalu = getWargaTunggakanLalu(m.warga_id, b, t, state);
-    const sisa = tagihan + tunggakanLalu - sudah - dep;
+    const { tagihan, deposit: dep, tunggakanLalu, sisa } = getWargaBillingSummary(m.warga_id, m.total_tagihan, sudah, b, t, state);
 
     const bayars = byrBln.filter(p => p.meteran_id === m.id);
 
-    let status = 'Belum Bayar';
-    if (tagihan === 0) {
-      status = 'Lunas';
-    } else if (sudah >= tagihan) {
-      status = 'Lunas';
-    } else if (sudah + dep >= tagihan) {
-      status = 'Lunas (Deposit)';
-    } else if (sudah > 0) {
-      status = 'Sebagian';
-    }
+    const status = evaluatePaymentStatus(tagihan, sudah, dep);
 
     return {
       id: m.id,
@@ -100,11 +89,8 @@ const Pembayaran = () => {
   const outstanding = mtrBln.map(m => {
     const w = state.warga.find(x => x.id === m.warga_id);
     if (!w || w.alamat === 'SISTEM') return null;
-    const tagihan = w.adalah_pengelola ? 0 : m.total_tagihan;
     const sudah = byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0);
-    const dep = getWargaDeposit(m.warga_id, b, t, state);
-    const tunggakanLalu = getWargaTunggakanLalu(m.warga_id, b, t, state);
-    const sisa = tagihan + tunggakanLalu - sudah - dep;
+    const { sisa, deposit: dep, tunggakanLalu } = getWargaBillingSummary(m.warga_id, m.total_tagihan, sudah, b, t, state);
 
     return {
       id: m.id,
@@ -155,9 +141,13 @@ const Pembayaran = () => {
       return;
     }
 
+    if (!payTgl) {
+      showToast('Tanggal transaksi wajib diisi', 'error');
+      return;
+    }
     const jumlah = Number(payJumlah);
-    if (isNaN(jumlah) || jumlah === 0) {
-      showToast('Jumlah nominal transaksi tidak boleh Rp 0', 'error');
+    if (isNaN(jumlah) || jumlah <= 0) {
+      showToast('Jumlah nominal transaksi harus lebih besar dari Rp 0', 'error');
       return;
     }
 
@@ -223,7 +213,7 @@ const Pembayaran = () => {
     e.preventDefault();
     if (isSaving) return;
     const jumlah = Number(patunganJumlah);
-    if (!patunganWarga || isNaN(jumlah) || jumlah <= 0) {
+    if (!patunganTgl || !patunganWarga || isNaN(jumlah) || jumlah <= 0) {
       showToast('Harap lengkapi semua isian dengan benar', 'error');
       return;
     }
@@ -339,7 +329,7 @@ const Pembayaran = () => {
     e.preventDefault();
     if (isSaving) return;
     const jumlah = Number(kasLainJumlah);
-    if (!kasLainWarga || !kasLainKet.trim() || isNaN(jumlah) || jumlah <= 0) {
+    if (!kasLainTgl || !kasLainWarga || !kasLainKet.trim() || isNaN(jumlah) || jumlah <= 0) {
       showToast('Harap lengkapi semua isian dengan benar', 'error');
       return;
     }

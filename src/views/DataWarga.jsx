@@ -10,6 +10,7 @@ const DataWarga = () => {
   const [search, setSearch] = useState('');
   const [editingWarga, setEditingWarga] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -64,6 +65,12 @@ const DataWarga = () => {
       showToast('Format nomor meter harus M-XXX (contoh: M-001)', 'error');
       return false;
     }
+
+    const duplicate = state.warga.find(w => w.no_meter === cleanNoMeter && w.id !== (editingWarga ? editingWarga.id : null));
+    if (duplicate) {
+      showToast(`Nomor meter ${cleanNoMeter} sudah dipakai oleh warga: ${duplicate.nama}`, 'error');
+      return false;
+    }
     if (!formData.alamat.trim()) {
       showToast('Alamat wajib diisi', 'error');
       return false;
@@ -73,40 +80,46 @@ const DataWarga = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (isSaving) return;
     if (!validateForm()) return;
 
-    const cleanNoMeter = formData.no_meter.trim().toUpperCase();
+    setIsSaving(true);
+    try {
+      const cleanNoMeter = formData.no_meter.trim().toUpperCase();
 
-    if (isAdding) {
-      const newWarga = {
-        id: crypto.randomUUID(),
-        ...formData,
-        no_meter: cleanNoMeter
-      };
+      if (isAdding) {
+        const newWarga = {
+          id: crypto.randomUUID(),
+          ...formData,
+          no_meter: cleanNoMeter
+        };
 
-      await executeWrite({
-        table: 'warga',
-        action: 'insert',
-        data: newWarga,
-        logMsg: `Menambahkan warga baru: ${formData.nama} (${cleanNoMeter})`
-      });
-      setIsAdding(false);
-    } else if (editingWarga) {
-      const updatedData = {
-        ...formData,
-        no_meter: cleanNoMeter
-      };
+        await executeWrite({
+          table: 'warga',
+          action: 'insert',
+          data: newWarga,
+          logMsg: `Menambahkan warga baru: ${formData.nama} (${cleanNoMeter})`
+        });
+        setIsAdding(false);
+      } else if (editingWarga) {
+        const updatedData = {
+          ...formData,
+          no_meter: cleanNoMeter
+        };
 
-      await executeWrite({
-        table: 'warga',
-        action: 'update',
-        id: editingWarga.id,
-        data: updatedData,
-        logMsg: `Mengubah data warga: ${editingWarga.nama} -> ${formData.nama}`
-      });
-      setEditingWarga(null);
+        await executeWrite({
+          table: 'warga',
+          action: 'update',
+          id: editingWarga.id,
+          data: updatedData,
+          logMsg: `Mengubah data warga: ${editingWarga.nama} -> ${formData.nama}`
+        });
+        setEditingWarga(null);
+      }
+      resetForm();
+    } finally {
+      setIsSaving(false);
     }
-    resetForm();
   };
 
   // Filter warga

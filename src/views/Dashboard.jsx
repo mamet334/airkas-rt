@@ -16,6 +16,8 @@ import {
   X
 } from 'lucide-react';
 
+const sumNominal = (items) => items.reduce((s, item) => s + (Number(item.nominal) || 0), 0);
+
 const Dashboard = () => {
   const { state } = useDb();
   
@@ -54,7 +56,7 @@ const Dashboard = () => {
     }
     return { ...m, nama_warga: w ? w.nama : 'Unknown', nominal: currTagihan, desc: `Tagihan Air ${w ? w.nama : ''}`, category: 'Tagihan' };
   }).filter(m => m.nominal > 0);
-  const tagihan = tagihanItems.reduce((s, m) => s + m.nominal, 0);
+  const tagihan = sumNominal(tagihanItems);
 
   // 2. Pendapatan Meteran (A)
   const pendapatanAirItems = byrBln.filter(p => {
@@ -67,7 +69,7 @@ const Dashboard = () => {
     const w = state.warga.find(x => x.id === mt?.warga_id);
     return { ...p, nama_warga: w ? w.nama : 'Unknown', nominal: p.jumlah_bayar, desc: `Bayar Tagihan ${p.keterangan || ''}`, category: 'Meteran Air' };
   });
-  const pendapatanAir = pendapatanAirItems.reduce((s, p) => s + p.nominal, 0);
+  const pendapatanAir = sumNominal(pendapatanAirItems);
 
   // 3. Pemasukan Kas Lain (B)
   const pemasukanLainItems = byrBln.filter(p => {
@@ -76,7 +78,7 @@ const Dashboard = () => {
     const w = state.warga.find(x => x.id === mt.warga_id);
     return w && w.alamat === 'SISTEM' && (!p.keterangan || !p.keterangan.startsWith('[PATUNGAN]'));
   }).map(p => ({ ...p, nama_warga: 'SISTEM', nominal: p.jumlah_bayar, desc: p.keterangan || 'Lainnya', category: 'Pemasukan Lain' }));
-  const pemasukanLain = pemasukanLainItems.reduce((s, p) => s + p.nominal, 0);
+  const pemasukanLain = sumNominal(pemasukanLainItems);
 
   // 4. Pemasukan Patungan (C)
   const pemasukanPatunganItems = byrBln.filter(p => p.keterangan && p.keterangan.startsWith('[PATUNGAN]')).map(p => {
@@ -84,23 +86,23 @@ const Dashboard = () => {
     const w = state.warga.find(x => x.id === mt?.warga_id);
     return { ...p, nama_warga: w ? w.nama : 'Unknown', nominal: p.jumlah_bayar, desc: p.keterangan, category: 'Patungan' };
   });
-  const pemasukanPatungan = pemasukanPatunganItems.reduce((s, p) => s + p.nominal, 0);
+  const pemasukanPatungan = sumNominal(pemasukanPatunganItems);
 
   // 5. Total Pemasukan Bulan Ini
   const masukItems = [...pendapatanAirItems, ...pemasukanLainItems, ...pemasukanPatunganItems];
-  const masuk = masukItems.reduce((s, p) => s + p.nominal, 0);
+  const masuk = sumNominal(masukItems);
 
   // 6. Keluar Air / Operasional (D)
   const keluarAirItems = klrBln.filter(k => k.kategori !== 'Perbaikan Mesin (Patungan)').map(k => ({ ...k, nominal: k.jumlah, desc: k.keterangan, nama_warga: k.kategori, category: 'Operasional' }));
-  const keluarAir = keluarAirItems.reduce((s, k) => s + k.nominal, 0);
+  const keluarAir = sumNominal(keluarAirItems);
 
   // 7. Keluar Mesin / Patungan (E)
   const keluarPatunganItems = klrBln.filter(k => k.kategori === 'Perbaikan Mesin (Patungan)').map(k => ({ ...k, nominal: k.jumlah, desc: k.keterangan, nama_warga: k.kategori, category: 'Mesin Patungan' }));
-  const keluarPatungan = keluarPatunganItems.reduce((s, k) => s + k.nominal, 0);
+  const keluarPatungan = sumNominal(keluarPatunganItems);
 
   // 8. Total Pengeluaran Bulan Ini
   const keluarItems = [...keluarAirItems, ...keluarPatunganItems];
-  const keluar = keluarItems.reduce((s, k) => s + k.nominal, 0);
+  const keluar = sumNominal(keluarItems);
 
   // 9. Kas Bersih Meteran (Bulan Ini)
   const kasBersihMeteran = pendapatanAir - keluarAir;
@@ -108,16 +110,16 @@ const Dashboard = () => {
   // 10. Saldo Kas RT (Total All-time)
   const totalBayarAllItems = state.pembayaran.map(p => ({ ...p, nominal: p.jumlah_bayar, desc: p.keterangan, type: 'in', nama_warga: 'Pemasukan' }));
   const totalKeluarAllItems = state.pengeluaran.map(k => ({ ...k, nominal: k.jumlah, desc: k.keterangan, type: 'out', nama_warga: 'Pengeluaran' }));
-  const totalBayarAll = state.rekap ? state.rekap.total_bayar : totalBayarAllItems.reduce((s, p) => s + p.nominal, 0);
-  const totalKeluarAll = state.rekap ? state.rekap.total_keluar : totalKeluarAllItems.reduce((s, k) => s + k.nominal, 0);
+  const totalBayarAll = state.rekap ? state.rekap.total_bayar : sumNominal(totalBayarAllItems);
+  const totalKeluarAll = state.rekap ? state.rekap.total_keluar : sumNominal(totalKeluarAllItems);
   const saldo = state.rekap ? state.rekap.kas_rt_bersih : (totalBayarAll - totalKeluarAll);
 
   // 11. Saldo Patungan Mesin (All-time)
   const allPatunganItems = state.pembayaran.filter(p => p.keterangan && p.keterangan.startsWith('[PATUNGAN]')).map(p => ({...p, nominal: p.jumlah_bayar, type: 'in', desc: p.keterangan, nama_warga: 'Pemasukan Patungan'}));
   const allMesinExpItems = state.pengeluaran.filter(k => k.kategori === 'Perbaikan Mesin (Patungan)').map(k => ({...k, nominal: k.jumlah, type: 'out', desc: k.keterangan, nama_warga: 'Pengeluaran Patungan'}));
   const saldoPatunganItems = [...allPatunganItems, ...allMesinExpItems];
-  const totalPatunganAll = state.rekap ? state.rekap.total_patungan_masuk : allPatunganItems.reduce((s, p) => s + p.nominal, 0);
-  const totalMesinExpAll = state.rekap ? state.rekap.total_mesin_keluar : allMesinExpItems.reduce((s, k) => s + k.nominal, 0);
+  const totalPatunganAll = state.rekap ? state.rekap.total_patungan_masuk : sumNominal(allPatunganItems);
+  const totalMesinExpAll = state.rekap ? state.rekap.total_mesin_keluar : sumNominal(allMesinExpItems);
   const saldoPatungan = state.rekap ? state.rekap.kas_patungan_bersih : (totalPatunganAll - totalMesinExpAll);
 
   // Belum Bayar (tunggakan setelah siklus berjalan selesai, yaitu bulan-bulan < b)
@@ -450,8 +452,8 @@ const Dashboard = () => {
               {detailModal.type === 'mix' ? (
                 <div className="flex flex-col sm:flex-row justify-between items-center text-sm font-bold gap-2">
                   <div className="flex gap-4">
-                    <span className="text-slate-500 dark:text-slate-400">Pemasukan: <span className="text-emerald-600 dark:text-emerald-400">{fmtRp(detailModal.items.filter(i => i.type === 'in').reduce((s, i) => s + i.nominal, 0))}</span></span>
-                    <span className="text-slate-500 dark:text-slate-400">Pengeluaran: <span className="text-rose-600 dark:text-rose-400">{fmtRp(detailModal.items.filter(i => i.type === 'out').reduce((s, i) => s + i.nominal, 0))}</span></span>
+                    <span className="text-slate-500 dark:text-slate-400">Pemasukan: <span className="text-emerald-600 dark:text-emerald-400">{fmtRp(sumNominal(detailModal.items.filter(i => i.type === 'in')))}</span></span>
+                    <span className="text-slate-500 dark:text-slate-400">Pengeluaran: <span className="text-rose-600 dark:text-rose-400">{fmtRp(sumNominal(detailModal.items.filter(i => i.type === 'out')))}</span></span>
                   </div>
                   <span className="text-slate-900 dark:text-white px-3 py-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600">Sisa Kas: {fmtRp(detailModal.total)}</span>
                 </div>
@@ -461,7 +463,7 @@ const Dashboard = () => {
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                       {Array.from(new Set(detailModal.items.map(i => i.category).filter(Boolean))).map(cat => (
                         <span key={cat} className="text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-700/50 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600">
-                          {cat}: <span className="font-bold text-emerald-600 dark:text-emerald-400">{fmtRp(detailModal.items.filter(i => i.category === cat).reduce((s, i) => s + i.nominal, 0))}</span>
+                          {cat}: <span className="font-bold text-emerald-600 dark:text-emerald-400">{fmtRp(sumNominal(detailModal.items.filter(i => i.category === cat)))}</span>
                         </span>
                       ))}
                     </div>
