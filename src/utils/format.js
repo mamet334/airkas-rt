@@ -1,3 +1,5 @@
+// src/utils/format.js
+
 export const fmtRp = (num) => {
   if (num === undefined || num === null) return 'Rp 0';
   return new Intl.NumberFormat('id-ID', {
@@ -40,7 +42,6 @@ export const fmtDateTime = (dateStr) => {
   }
 };
 
-// Cycle helper: get month/year from date
 export const getCycleMonthYear = (dateStr) => {
   const d = new Date(dateStr);
   const day = d.getDate();
