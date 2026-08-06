@@ -80,12 +80,16 @@ const App = () => {
     localStorage.setItem('airkasrt_theme', nextDark ? 'dark' : 'light');
   };
 
-  // Auto-redirect to dashboard if admin locks while on pengaturan
-  React.useEffect(() => {
+  // === PERBAIKAN UTAMA DI SINI ===
+  // Gunakan useMemo untuk menentukan tab yang benar-benar ditampilkan
+  // tanpa memanggil setActiveTab di dalam useEffect
+  const displayTab = React.useMemo(() => {
     if (!isAdminUnlocked && activeTab === 'pengaturan') {
-      setActiveTab('dashboard');
+      return 'dashboard';
     }
+    return activeTab;
   }, [isAdminUnlocked, activeTab]);
+  // ================================
 
   const handleAdminLockToggle = () => {
     if (isAdminUnlocked) {
@@ -119,7 +123,8 @@ const App = () => {
     { id: 'pengaturan', label: 'Pengaturan', icon: Settings, view: Pengaturan, adminOnly: true }
   ];
 
-  const ActiveView = navItems.find(item => item.id === activeTab)?.view || Dashboard;
+  // Ganti activeTab dengan displayTab di sini agar komponen yang dirender mengikuti hasil useMemo
+  const ActiveView = navItems.find(item => item.id === displayTab)?.view || Dashboard;
   const rtName = state.settings?.nama_rt || 'RT 01 / RW 05';
 
   return (
@@ -154,7 +159,7 @@ const App = () => {
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.filter(item => !item.adminOnly || isAdminUnlocked).map(item => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = activeTab === item.id; // Tetap gunakan activeTab untuk highlight klik terakhir user
             return (
               <button
                 key={item.id}
@@ -220,8 +225,9 @@ const App = () => {
             >
               <Menu size={20} />
             </button>
+            {/* Ganti activeTab dengan displayTab untuk judul header */}
             <h2 className="text-sm font-bold text-slate-805 dark:text-white hidden md:block">
-              {navItems.find(item => item.id === activeTab)?.label}
+              {navItems.find(item => item.id === displayTab)?.label}
             </h2>
           </div>
 
