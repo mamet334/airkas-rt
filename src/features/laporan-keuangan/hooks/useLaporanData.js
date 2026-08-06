@@ -1,11 +1,8 @@
 import { useMemo } from 'react';
-import { getCycleMonthYear, filterByrBySiklus, filterKlrBySiklus, getCycleDateRange } from '../../../utils/billing';
+import { filterByrBySiklus, filterKlrBySiklus, getCycleDateRange } from '../../../utils/billing';
 import { calculateTotalTagihan, calculatePendapatanAir, calculateMonthlySummary } from '../../../utils/reportCalculations';
 
 export const useLaporanData = (state, selectedMonth, selectedYear, reportType) => {
-  const cur = new Date();
-  // const cycle = getCycleMonthYear(cur); // dihapus karena tidak dipakai
-  
   const targetB = selectedMonth === 1 ? 12 : selectedMonth - 1;
   const targetT = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
 
@@ -41,8 +38,7 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
   const masuk = byrSiklus.reduce((s, p) => s + p.jumlah_bayar, 0);
   const keluar = klrSiklus.reduce((s, k) => s + k.jumlah, 0);
 
-  // 4. ✅ SALDO AKHIR PER PERIODE (sama dengan UI)
-  // Saldo Bawaan + Pemasukan Periode - Pengeluaran Periode
+  // 4. SALDO AKHIR PER PERIODE (sama dengan UI)
   const { start: cycleStartStr } = getCycleDateRange(b, t);
   
   const prevMasuk = state.pembayaran.filter(p => {
@@ -97,13 +93,10 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
     kasBersihMeteran: pendapatanAir - keluarAir,
     masuk, 
     keluar, 
-    // ✅ SALDO AKHIR PER PERIODE (sama dengan UI)
     saldo: saldoAkhirCash,
     saldoPatungan: saldoPatunganPerPeriode,
-    // Cash flow
     saldoAwalCash, 
     saldoAkhirCash,
-    // Saldo real-time
     saldoRealtime,
     saldoPatunganRealtime,
     targetB, 

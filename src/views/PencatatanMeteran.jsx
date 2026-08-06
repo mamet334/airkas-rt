@@ -40,10 +40,7 @@ const PencatatanMeteran = () => {
     const tarif = state.settings.tarif_per_m3 || 8000;
 
     const initialReadings = activeWarga.map(w => {
-      // Find current reading for this month/year if it already exists
       const existing = state.meteran.find(m => m.warga_id === w.id && m.bulan === b && m.tahun === t);
-      
-      // Find previous reading to default "meter_lalu"
       const previous = state.meteran.find(m => m.warga_id === w.id && m.bulan === prevM && m.tahun === prevY);
       const defaultMeterLalu = previous ? previous.meter_sekarang : 0;
 
@@ -69,8 +66,6 @@ const PencatatanMeteran = () => {
       
       const metSekarang = val === '' ? 0 : Number(val);
       const pemakaian = Math.max(0, metSekarang - r.meter_lalu);
-      
-      // Pengelola RT gratis, total tagihan selalu Rp 0
       const totalTagihan = r.adalah_pengelola ? 0 : (pemakaian * r.tarif_per_m3);
 
       return {
@@ -83,14 +78,12 @@ const PencatatanMeteran = () => {
   };
 
   const handleSaveAll = async () => {
-    // Validate inputs
     const filledReadings = readings.filter(r => r.meter_sekarang_input !== '');
     if (filledReadings.length === 0) {
       showToast('Masukkan setidaknya satu angka meter sekarang untuk disimpan.', 'warning');
       return;
     }
 
-    // Check for negative usage and extreme spikes
     let hasExtremeUsage = false;
     for (const r of filledReadings) {
       const metSek = Number(r.meter_sekarang_input);
@@ -157,32 +150,29 @@ const PencatatanMeteran = () => {
 
   return (
     <div className="space-y-6">
-      {/* HEADER & FILTER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">Pencatatan Meteran Air</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">Pencatatan pemakaian air bulanan warga</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Period selector */}
           <div className="flex gap-2">
             <select
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              onChange={(_e) => setSelectedMonth(Number(_e.target.value))}
               className="px-3 py-2 rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               {MONTHS.map((m, idx) => idx > 0 && <option key={idx} value={idx}>{m} (15 {idx === 1 ? 'Des' : MONTHS[idx-1]} - 14 {m})</option>)}
             </select>
             <select
               value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              onChange={(_e) => setSelectedYear(Number(_e.target.value))}
               className="px-3 py-2 rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               {[2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
 
-          {/* Action Button */}
           {isAdminUnlocked ? (
             <button
               onClick={handleSaveAll}
@@ -200,13 +190,11 @@ const PencatatanMeteran = () => {
         </div>
       </div>
 
-      {/* TARIF SETTING INFO */}
       <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-teal-200/50 dark:border-teal-900/20 bg-teal-50/40 dark:bg-teal-950/10 text-teal-800 dark:text-teal-400 text-xs">
         <Info size={16} />
         <span>Tarif air aktif: <strong>{fmtRp(state.settings.tarif_per_m3 || 8000)} / m³</strong>. Biaya administrasi: <strong>{fmtRp(state.settings.biaya_admin || 0)}</strong>.</span>
       </div>
 
-      {/* INPUT LIST CARD */}
       <div className="rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200/50 dark:border-slate-700/50 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
@@ -255,7 +243,7 @@ const PencatatanMeteran = () => {
                             type="number"
                             disabled={!isAdminUnlocked}
                             value={r.meter_sekarang_input}
-                            onChange={(e) => handleInputChange(r.warga_id, e.target.value)}
+                            onChange={(_e) => handleInputChange(r.warga_id, _e.target.value)}
                             placeholder="Ketik angka..."
                             className="px-2.5 py-1.5 w-24 rounded-lg font-mono font-bold text-center text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-60 disabled:cursor-not-allowed"
                           />
