@@ -139,7 +139,8 @@ const PencatatanMeteran = () => {
             savedCount++;
           }
           showToast(`Berhasil menyimpan ${savedCount} catatan meteran!`, 'success');
-        } catch  {
+          // eslint-disable-next-line no-unused-vars
+        } catch (e) {
           if (savedCount > 0) {
             showToast(`Menyimpan ${savedCount} catatan, tetapi gagal melanjutkan sisanya.`, 'warning');
           }
