@@ -1,0 +1,227 @@
+{
+  "cek_duplikat.cjs": {
+    "mtime": 1781491123.423324,
+    "ast_hash": "f45498dcd3e988fb441aa211e2e736bb",
+    "semantic_hash": "f45498dcd3e988fb441aa211e2e736bb"
+  },
+  "cek_pengembalian.cjs": {
+    "mtime": 1781491400.7173038,
+    "ast_hash": "4b44328e9c397715a0d10d7ca6d64d66",
+    "semantic_hash": "4b44328e9c397715a0d10d7ca6d64d66"
+  },
+  "cek_saldo.cjs": {
+    "mtime": 1781486415.66369,
+    "ast_hash": "affe56668d060bde4fe830a1138ad1c5",
+    "semantic_hash": "affe56668d060bde4fe830a1138ad1c5"
+  },
+  "check_jsx.js": {
+    "mtime": 1781488317.2806122,
+    "ast_hash": "ed52c835cc992d1bdd848d99ea6ec31e",
+    "semantic_hash": "ed52c835cc992d1bdd848d99ea6ec31e"
+  },
+  "dump_kas_lain.cjs": {
+    "mtime": 1781489641.3845446,
+    "ast_hash": "ef019b1680536184cf8e5a91fe8435ba",
+    "semantic_hash": "ef019b1680536184cf8e5a91fe8435ba"
+  },
+  "eslint.config.js": {
+    "mtime": 1778825362.1866875,
+    "ast_hash": "3aa4b57d7f08181d86bde52a4dcb7f22",
+    "semantic_hash": "3aa4b57d7f08181d86bde52a4dcb7f22"
+  },
+  "p.json": {
+    "mtime": 1780318427.3049757,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "package.json": {
+    "mtime": 1785035638.4528103,
+    "ast_hash": "4bbc3d39b26d2cd606602b767a04ebc3",
+    "semantic_hash": "4bbc3d39b26d2cd606602b767a04ebc3"
+  },
+  "postcss.config.js": {
+    "mtime": 1779206580.0979047,
+    "ast_hash": "c1ee9ce6a4fe04105dbf8e619390df5e",
+    "semantic_hash": "c1ee9ce6a4fe04105dbf8e619390df5e"
+  },
+  "scratch/check_all_pembayaran.cjs": {
+    "mtime": 1781505085.6056354,
+    "ast_hash": "60502d254cd10e34931f40d5ec414bd5",
+    "semantic_hash": "60502d254cd10e34931f40d5ec414bd5"
+  },
+  "scratch/check_juni.cjs": {
+    "mtime": 1781505044.199648,
+    "ast_hash": "548f0c3a6f4308f0396df9bd40fc461f",
+    "semantic_hash": "548f0c3a6f4308f0396df9bd40fc461f"
+  },
+  "src/App.jsx": {
+    "mtime": 1785979474.740155,
+    "ast_hash": "e3a28a450341cb8c904cfb808a859ca3",
+    "semantic_hash": "e3a28a450341cb8c904cfb808a859ca3"
+  },
+  "src/__tests__/billing.test.js": {
+    "mtime": 1779339851.0830133,
+    "ast_hash": "aba96a171dd064a51a43a01e177b5222",
+    "semantic_hash": "aba96a171dd064a51a43a01e177b5222"
+  },
+  "src/__tests__/format.test.js": {
+    "mtime": 1779339835.2162373,
+    "ast_hash": "2ed1dc99e177135f1501541f7a41689e",
+    "semantic_hash": "2ed1dc99e177135f1501541f7a41689e"
+  },
+  "src/features/laporan-keuangan/components/LaporanControls.jsx": {
+    "mtime": 1785036340.6621327,
+    "ast_hash": "cbd398818153fe64eb67692a2f09c496",
+    "semantic_hash": "cbd398818153fe64eb67692a2f09c496"
+  },
+  "src/features/laporan-keuangan/components/PengeluaranTable.jsx": {
+    "mtime": 1785040117.6569188,
+    "ast_hash": "2923df9574cba4d0cb50ba2a71bba23f",
+    "semantic_hash": "2923df9574cba4d0cb50ba2a71bba23f"
+  },
+  "src/features/laporan-keuangan/components/SummaryCards.jsx": {
+    "mtime": 1785033297.1526246,
+    "ast_hash": "c14dc4a58b030128c7c02da28597029d",
+    "semantic_hash": "c14dc4a58b030128c7c02da28597029d"
+  },
+  "src/features/laporan-keuangan/components/TransactionLog.jsx": {
+    "mtime": 1785040157.5274458,
+    "ast_hash": "d8786d56d674177fb9b933ac47391209",
+    "semantic_hash": "d8786d56d674177fb9b933ac47391209"
+  },
+  "src/features/laporan-keuangan/components/WargaDetailTable.jsx": {
+    "mtime": 1785992419.7374015,
+    "ast_hash": "a98f26ab956fbee6cf06585ebc719404",
+    "semantic_hash": "a98f26ab956fbee6cf06585ebc719404"
+  },
+  "src/features/laporan-keuangan/hooks/useLaporanData.js": {
+    "mtime": 1785995193.0461657,
+    "ast_hash": "7b3ff2f864d9d75a57bf54ce331bbe93",
+    "semantic_hash": "7b3ff2f864d9d75a57bf54ce331bbe93"
+  },
+  "src/features/laporan-keuangan/hooks/useReportActions.js": {
+    "mtime": 1785044691.056413,
+    "ast_hash": "fbd9b7af28ae2e307b4ab3998f8025c0",
+    "semantic_hash": "fbd9b7af28ae2e307b4ab3998f8025c0"
+  },
+  "src/features/laporan-keuangan/services/reportExporter.js": {
+    "mtime": 1785047061.5020144,
+    "ast_hash": "906ff7f3074f621a0ec3c5a4b3fee55d",
+    "semantic_hash": "906ff7f3074f621a0ec3c5a4b3fee55d"
+  },
+  "src/main.jsx": {
+    "mtime": 1781484503.9848666,
+    "ast_hash": "9a29a25af09819b5cc00533966e8ed2e",
+    "semantic_hash": "9a29a25af09819b5cc00533966e8ed2e"
+  },
+  "src/setupTests.js": {
+    "mtime": 1779339835.028106,
+    "ast_hash": "dc972af1d2b80e79814a7e1999178b15",
+    "semantic_hash": "dc972af1d2b80e79814a7e1999178b15"
+  },
+  "src/store/DbContext.jsx": {
+    "mtime": 1785981122.3138635,
+    "ast_hash": "78e1a77a20cd672e547dac0aa27fbbe9",
+    "semantic_hash": "78e1a77a20cd672e547dac0aa27fbbe9"
+  },
+  "src/store/NotificationContext.jsx": {
+    "mtime": 1779940282.8157175,
+    "ast_hash": "2f248372d2bb08ad026bfd84a53bf876",
+    "semantic_hash": "2f248372d2bb08ad026bfd84a53bf876"
+  },
+  "src/utils/billing.js": {
+    "mtime": 1781500254.5661757,
+    "ast_hash": "6d8f098b1b161c6ee62847fc588983b2",
+    "semantic_hash": "6d8f098b1b161c6ee62847fc588983b2"
+  },
+  "src/utils/billingEngine.js": {
+    "mtime": 1782478640.2801716,
+    "ast_hash": "563d3528f6ad9d86e989769b6ddf5593",
+    "semantic_hash": "563d3528f6ad9d86e989769b6ddf5593"
+  },
+  "src/utils/billingEngine.test.js": {
+    "mtime": 1785988718.2738879,
+    "ast_hash": "0e7755c1b5cc706e2415b9a5bc221c0d",
+    "semantic_hash": "0e7755c1b5cc706e2415b9a5bc221c0d"
+  },
+  "src/utils/cycleEngine.js": {
+    "mtime": 1782478048.5817268,
+    "ast_hash": "13cfcd4b4e21ed290d57da97e080d9c9",
+    "semantic_hash": "13cfcd4b4e21ed290d57da97e080d9c9"
+  },
+  "src/utils/cycleEngine.test.js": {
+    "mtime": 1785988969.0522623,
+    "ast_hash": "f07404edd7897501cb0dac5b4f82d630",
+    "semantic_hash": "f07404edd7897501cb0dac5b4f82d630"
+  },
+  "src/utils/format.js": {
+    "mtime": 1785042115.585325,
+    "ast_hash": "a98150adcb6326334a087833dab3061f",
+    "semantic_hash": "a98150adcb6326334a087833dab3061f"
+  },
+  "src/utils/reportCalculations.js": {
+    "mtime": 1785984742.1893916,
+    "ast_hash": "87e8ff81a831c150a212a1028fcc66e8",
+    "semantic_hash": "87e8ff81a831c150a212a1028fcc66e8"
+  },
+  "src/utils/vitest.config.js": {
+    "mtime": 1785987392.1598566,
+    "ast_hash": "a0c5b7afeaef2843c52d7a1251f50fb8",
+    "semantic_hash": "a0c5b7afeaef2843c52d7a1251f50fb8"
+  },
+  "src/views/AuditLog.jsx": {
+    "mtime": 1779940288.5374768,
+    "ast_hash": "3ab289678fbb4f73d9692a1d74a99722",
+    "semantic_hash": "3ab289678fbb4f73d9692a1d74a99722"
+  },
+  "src/views/Dashboard.jsx": {
+    "mtime": 1785981481.4007375,
+    "ast_hash": "273152acb0175fc7443a79398d94a2f4",
+    "semantic_hash": "273152acb0175fc7443a79398d94a2f4"
+  },
+  "src/views/DataWarga.jsx": {
+    "mtime": 1782481350.261297,
+    "ast_hash": "fe02a93d0ea5d1015d7e925e5be810da",
+    "semantic_hash": "fe02a93d0ea5d1015d7e925e5be810da"
+  },
+  "src/views/LaporanKeuangan.jsx": {
+    "mtime": 1785040619.3217442,
+    "ast_hash": "e4e8e40762c1d7d815940b4f6ce74509",
+    "semantic_hash": "e4e8e40762c1d7d815940b4f6ce74509"
+  },
+  "src/views/Pembayaran.jsx": {
+    "mtime": 1785984143.8925714,
+    "ast_hash": "a1dfa48673e6cf585fa4925acb3cbec9",
+    "semantic_hash": "a1dfa48673e6cf585fa4925acb3cbec9"
+  },
+  "src/views/PencatatanMeteran.jsx": {
+    "mtime": 1785987132.7471628,
+    "ast_hash": "4fbf6177ee0f4ba897f981a128bd534f",
+    "semantic_hash": "4fbf6177ee0f4ba897f981a128bd534f"
+  },
+  "src/views/Pengaturan.jsx": {
+    "mtime": 1785984494.166566,
+    "ast_hash": "b051ada3b428e40d463d17632b82fe76",
+    "semantic_hash": "b051ada3b428e40d463d17632b82fe76"
+  },
+  "src/views/Pengeluaran.jsx": {
+    "mtime": 1782481334.205442,
+    "ast_hash": "1320ea6d623a6c54885a1b1005440d8d",
+    "semantic_hash": "1320ea6d623a6c54885a1b1005440d8d"
+  },
+  "tailwind.config.js": {
+    "mtime": 1779206325.788476,
+    "ast_hash": "1ad5cda8bf6a3d548d6190a2c3fe4a08",
+    "semantic_hash": "1ad5cda8bf6a3d548d6190a2c3fe4a08"
+  },
+  "vite.config.js": {
+    "mtime": 1778825362.5594113,
+    "ast_hash": "88439104b3c207f17d33ef3160e3b080",
+    "semantic_hash": "88439104b3c207f17d33ef3160e3b080"
+  },
+  "vitest.config.js": {
+    "mtime": 1779340463.2312434,
+    "ast_hash": "b0b5a1bfb081f7b9d5bc53b26fccc774",
+    "semantic_hash": "b0b5a1bfb081f7b9d5bc53b26fccc774"
+  }
+}

@@ -1,0 +1,420 @@
+{
+  "communities": {
+    "0": [
+      "autoprefixer",
+      "eslint",
+      "eslint_js",
+      "eslint_plugin_react_hooks",
+      "eslint_plugin_react_refresh",
+      "globals",
+      "package_devdependencies",
+      "package_devdependencies_autoprefixer",
+      "package_devdependencies_eslint",
+      "package_devdependencies_eslint_js",
+      "package_devdependencies_eslint_plugin_react_hooks",
+      "package_devdependencies_eslint_plugin_react_refresh",
+      "package_devdependencies_globals",
+      "package_devdependencies_postcss",
+      "package_devdependencies_tailwindcss",
+      "package_devdependencies_tailwindcss_postcss",
+      "package_devdependencies_types_react",
+      "package_devdependencies_types_react_dom",
+      "package_devdependencies_vercel",
+      "package_devdependencies_vite",
+      "package_devdependencies_vitejs_plugin_react",
+      "package_devdependencies_vitest",
+      "postcss",
+      "tailwindcss",
+      "tailwindcss_postcss",
+      "types_react",
+      "types_react_dom",
+      "vercel",
+      "vite",
+      "vitejs_plugin_react",
+      "vitest"
+    ],
+    "1": [
+      "src_store_dbcontext_usedb",
+      "src_store_notificationcontext_usenotification",
+      "src_tests_billing_test",
+      "src_utils_billing",
+      "src_utils_billing_filterklrbysiklus",
+      "src_utils_billing_getcyclemonthyear",
+      "src_utils_billing_getwargatunggakanlalu",
+      "src_utils_billingengine_evaluatepaymentstatus",
+      "src_utils_format_fmtdatetime",
+      "src_utils_format_fmtrp",
+      "src_views_auditlog",
+      "src_views_auditlog_auditlog",
+      "src_views_dashboard",
+      "src_views_dashboard_dashboard",
+      "src_views_dashboard_sumnominal",
+      "src_views_datawarga",
+      "src_views_datawarga_datawarga",
+      "src_views_pembayaran",
+      "src_views_pembayaran_pembayaran",
+      "src_views_pencatatanmeteran",
+      "src_views_pencatatanmeteran_pencatatanmeteran",
+      "src_views_pengaturan",
+      "src_views_pengaturan_pengaturan",
+      "src_views_pengeluaran",
+      "src_views_pengeluaran_categories",
+      "src_views_pengeluaran_pengeluaran"
+    ],
+    "2": [
+      "html2canvas_pro",
+      "jspdf_autotable",
+      "lucide_react",
+      "package",
+      "package_dependencies",
+      "package_dependencies_html2canvas_pro",
+      "package_dependencies_jspdf_autotable",
+      "package_dependencies_lucide_react",
+      "package_dependencies_react_dom",
+      "package_dependencies_supabase_supabase_js",
+      "package_name",
+      "package_private",
+      "package_scripts",
+      "package_scripts_build",
+      "package_scripts_dev",
+      "package_scripts_lint",
+      "package_scripts_preview",
+      "package_scripts_test",
+      "package_scripts_test_watch",
+      "package_type",
+      "package_version",
+      "react_dom",
+      "supabase_supabase_js"
+    ],
+    "3": [
+      "package_dependencies_react",
+      "react",
+      "src_app",
+      "src_app_app",
+      "src_app_auditlog",
+      "src_app_dashboard",
+      "src_app_datawarga",
+      "src_app_laporankeuangan",
+      "src_app_pembayaran",
+      "src_app_pencatatanmeteran",
+      "src_app_pengaturan",
+      "src_app_pengeluaran",
+      "src_main",
+      "src_store_dbcontext",
+      "src_store_dbcontext_dbcontext",
+      "src_store_dbcontext_dbprovider",
+      "src_store_dbcontext_encodetext",
+      "src_store_dbcontext_getstoredadminpinhash",
+      "src_store_dbcontext_hashtext",
+      "src_store_notificationcontext",
+      "src_store_notificationcontext_notificationcontext",
+      "src_store_notificationcontext_notificationprovider",
+      "src_store_notificationcontext_urlbase64touint8array"
+    ],
+    "4": [
+      "src_features_laporan_keuangan_components_wargadetailtable",
+      "src_features_laporan_keuangan_components_wargadetailtable_getstatusinfo",
+      "src_features_laporan_keuangan_components_wargadetailtable_tableheader",
+      "src_features_laporan_keuangan_components_wargadetailtable_wargadetailtable",
+      "src_features_laporan_keuangan_components_wargadetailtable_wargarow",
+      "src_utils_billing_getwargadeposit",
+      "src_utils_billingengine",
+      "src_utils_billingengine_calculatearrears",
+      "src_utils_billingengine_calculatebill",
+      "src_utils_billingengine_calculatedeposit",
+      "src_utils_billingengine_filterbyrbysiklus",
+      "src_utils_billingengine_filterklrbysiklus",
+      "src_utils_billingengine_getwargabillingsummary",
+      "src_utils_billingengine_test",
+      "src_utils_billingengine_test_statemock",
+      "src_utils_cycleengine",
+      "src_utils_cycleengine_getcycledaterange",
+      "src_utils_cycleengine_getcyclelabel",
+      "src_utils_cycleengine_getcyclemonthyear",
+      "src_utils_cycleengine_getcycletarget",
+      "src_utils_cycleengine_months",
+      "src_utils_cycleengine_test"
+    ],
+    "5": [
+      "src_features_laporan_keuangan_components_laporancontrols",
+      "src_features_laporan_keuangan_components_laporancontrols_actionbutton",
+      "src_features_laporan_keuangan_components_laporancontrols_laporancontrols",
+      "src_features_laporan_keuangan_components_pengeluarantable",
+      "src_features_laporan_keuangan_components_pengeluarantable_pengeluarantable",
+      "src_features_laporan_keuangan_components_summarycards",
+      "src_features_laporan_keuangan_components_summarycards_summarycard",
+      "src_features_laporan_keuangan_components_summarycards_summarycards",
+      "src_features_laporan_keuangan_components_transactionlog",
+      "src_features_laporan_keuangan_components_transactionlog_transactionlog",
+      "src_tests_format_test",
+      "src_utils_format",
+      "src_utils_format_fmtdate",
+      "src_utils_format_getcyclemonthyear",
+      "src_utils_format_months",
+      "src_views_laporankeuangan"
+    ],
+    "6": [
+      "src_features_laporan_keuangan_hooks_uselaporandata",
+      "src_features_laporan_keuangan_hooks_uselaporandata_preparemonthlydata",
+      "src_features_laporan_keuangan_hooks_uselaporandata_prepareyearlydata",
+      "src_features_laporan_keuangan_hooks_uselaporandata_uselaporandata",
+      "src_utils_billing_filterbyrbysiklus",
+      "src_utils_billing_getcycledaterange",
+      "src_utils_reportcalculations",
+      "src_utils_reportcalculations_calculatecashflow",
+      "src_utils_reportcalculations_calculatemonthlysummary",
+      "src_utils_reportcalculations_calculatependapatanair",
+      "src_utils_reportcalculations_calculatetotaltagihan"
+    ],
+    "7": [
+      "jspdf",
+      "package_dependencies_jspdf",
+      "src_features_laporan_keuangan_hooks_usereportactions",
+      "src_features_laporan_keuangan_hooks_usereportactions_usereportactions",
+      "src_features_laporan_keuangan_services_reportexporter",
+      "src_features_laporan_keuangan_services_reportexporter_addfooterstoallpages",
+      "src_features_laporan_keuangan_services_reportexporter_ensurespaceforsignature",
+      "src_features_laporan_keuangan_services_reportexporter_generatemonthlypdf",
+      "src_features_laporan_keuangan_services_reportexporter_generateyearlypdf",
+      "src_views_laporankeuangan_laporankeuangan"
+    ],
+    "8": [
+      "cek_duplikat",
+      "cek_duplikat_checkdups",
+      "cek_duplikat_createclient",
+      "cek_duplikat_supabase"
+    ],
+    "9": [
+      "cek_pengembalian",
+      "cek_pengembalian_createclient",
+      "cek_pengembalian_findklr",
+      "cek_pengembalian_supabase"
+    ],
+    "10": [
+      "cek_saldo",
+      "cek_saldo_check",
+      "cek_saldo_createclient",
+      "cek_saldo_supabase"
+    ],
+    "11": [
+      "dump_kas_lain",
+      "dump_kas_lain_createclient",
+      "dump_kas_lain_run",
+      "dump_kas_lain_supabase"
+    ],
+    "12": [
+      "scratch_check_all_pembayaran",
+      "scratch_check_all_pembayaran_checkall",
+      "scratch_check_all_pembayaran_createclient",
+      "scratch_check_all_pembayaran_supabase"
+    ],
+    "13": [
+      "scratch_check_juni",
+      "scratch_check_juni_checkjuni",
+      "scratch_check_juni_createclient",
+      "scratch_check_juni_supabase"
+    ],
+    "14": [
+      "check_jsx"
+    ],
+    "15": [
+      "eslint_config"
+    ],
+    "16": [
+      "postcss_config"
+    ],
+    "17": [
+      "src_setuptests"
+    ],
+    "18": [
+      "src_utils_billingengine_getwargadeposit"
+    ],
+    "19": [
+      "src_utils_billingengine_getwargatunggakanlalu"
+    ],
+    "20": [
+      "src_utils_vitest_config"
+    ],
+    "21": [
+      "tailwind_config"
+    ],
+    "22": [
+      "vite_config"
+    ],
+    "23": [
+      "vitest_config"
+    ]
+  },
+  "cohesion": {
+    "0": 0.06451612903225806,
+    "1": 0.23384615384615384,
+    "2": 0.08695652173913043,
+    "3": 0.13043478260869565,
+    "4": 0.1645021645021645,
+    "5": 0.26666666666666666,
+    "6": 0.41818181818181815,
+    "7": 0.4222222222222222,
+    "8": 0.5,
+    "9": 0.5,
+    "10": 0.5,
+    "11": 0.5,
+    "12": 0.5,
+    "13": 0.5,
+    "14": 1.0,
+    "15": 1.0,
+    "16": 1.0,
+    "17": 1.0,
+    "18": 1.0,
+    "19": 1.0,
+    "20": 1.0,
+    "21": 1.0,
+    "22": 1.0,
+    "23": 1.0
+  },
+  "gods": [
+    {
+      "id": "src_utils_format_fmtrp",
+      "label": "fmtRp()",
+      "degree": 25
+    },
+    {
+      "id": "src_store_dbcontext_usedb",
+      "label": "useDb()",
+      "degree": 19
+    },
+    {
+      "id": "src_store_notificationcontext_usenotification",
+      "label": "useNotification()",
+      "degree": 17
+    },
+    {
+      "id": "src_utils_format_months",
+      "label": "MONTHS",
+      "degree": 11
+    },
+    {
+      "id": "src_utils_billing_getcyclemonthyear",
+      "label": "getCycleMonthYear()",
+      "degree": 10
+    },
+    {
+      "id": "src_utils_billingengine_getwargabillingsummary",
+      "label": "getWargaBillingSummary()",
+      "degree": 10
+    },
+    {
+      "id": "src_utils_format_fmtdate",
+      "label": "fmtDate()",
+      "degree": 10
+    },
+    {
+      "id": "src_views_pembayaran_pembayaran",
+      "label": "Pembayaran()",
+      "degree": 9
+    },
+    {
+      "id": "src_utils_billing_filterklrbysiklus",
+      "label": "filterKlrBySiklus()",
+      "degree": 8
+    },
+    {
+      "id": "src_views_dashboard_dashboard",
+      "label": "Dashboard()",
+      "degree": 8
+    }
+  ],
+  "surprises": [
+    {
+      "source": "addFootersToAllPages()",
+      "target": "jspdf",
+      "source_files": [
+        "src/features/laporan-keuangan/services/reportExporter.js",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories"
+    },
+    {
+      "source": "ensureSpaceForSignature()",
+      "target": "jspdf",
+      "source_files": [
+        "src/features/laporan-keuangan/services/reportExporter.js",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories"
+    },
+    {
+      "source": "generateMonthlyPDF()",
+      "target": "jspdf",
+      "source_files": [
+        "src/features/laporan-keuangan/services/reportExporter.js",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories"
+    },
+    {
+      "source": "generateYearlyPDF()",
+      "target": "jspdf",
+      "source_files": [
+        "src/features/laporan-keuangan/services/reportExporter.js",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories"
+    },
+    {
+      "source": "App()",
+      "target": "react",
+      "source_files": [
+        "src/App.jsx",
+        "package.json"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `dependencies` connect `dependencies` to `DbContext.jsx`, `useReportActions.js`?",
+      "why": "High betweenness centrality (0.330) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `devDependencies` connect `devDependencies` to `dependencies`?",
+      "why": "High betweenness centrality (0.230) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `jspdf` connect `useReportActions.js` to `dependencies`?",
+      "why": "High betweenness centrality (0.159) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `{ createClient }`, `supabase`, `{ createClient }` to the rest of the system?",
+      "why": "59 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `devDependencies` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06451612903225806 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `dependencies` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.08695652173913043 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `DbContext.jsx` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.13043478260869565 - nodes in this community are weakly interconnected."
+    }
+  ]
+}
