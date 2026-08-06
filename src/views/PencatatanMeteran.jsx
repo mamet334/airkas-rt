@@ -139,7 +139,7 @@ const PencatatanMeteran = () => {
             savedCount++;
           }
           showToast(`Berhasil menyimpan ${savedCount} catatan meteran!`, 'success');
-        } catch (e) {
+        } catch (_) {
           if (savedCount > 0) {
             showToast(`Menyimpan ${savedCount} catatan, tetapi gagal melanjutkan sisanya.`, 'warning');
           }
