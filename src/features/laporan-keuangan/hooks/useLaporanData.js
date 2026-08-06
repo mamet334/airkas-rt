@@ -5,7 +5,8 @@ import { calculateTotalTagihan, calculatePendapatanAir, calculateMonthlySummary 
 
 export const useLaporanData = (state, selectedMonth, selectedYear, reportType) => {
   const cur = new Date();
-  const cycle = getCycleMonthYear(cur);
+  // Hapus variabel cycle yang tidak dipakai
+  // const cycle = getCycleMonthYear(cur);
   
   const targetB = selectedMonth === 1 ? 12 : selectedMonth - 1;
   const targetT = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
@@ -32,7 +33,7 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
   const wargaAktif = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM');
 
   // 3. Perhitungan Tagihan & Pendapatan
-  const tagihan = calculateTotalTagihan(mtrBln, state.warga, state.pembayaran, targetB, targetT);
+  const tagihan = calculateTotalTagihan(mtrBln, state.warga, state.pembayaran);
   const pendapatanAir = calculatePendapatanAir(byrBln, state.meteran, state.warga);
   
   const keluarAir = klrSiklus
