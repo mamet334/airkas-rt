@@ -28,7 +28,7 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
   const wargaAktif = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM');
 
   // 3. Perhitungan Tagihan & Pendapatan
-  const tagihan = calculateTotalTagihan(mtrBln, state.warga, state.pembayaran, targetB, targetT);
+  const tagihan = calculateTotalTagihan(mtrBln, state.warga, state.pembayaran);
   const pendapatanAir = calculatePendapatanAir(byrBln, state.meteran, state.warga);
   
   const keluarAir = klrSiklus
@@ -54,7 +54,7 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
   const saldoAwalCash = prevMasuk - prevKeluar;
   const saldoAkhirCash = saldoAwalCash + masuk - keluar;
 
-  // 5. SALDO PATUNGAN PER PERIODE
+  // 5. SALDO PATUNGAN PER PERIODE (hanya untuk bulan ini) — INI YANG BENAR UNTUK LAPORAN BULANAN
   const patunganPeriode = byrSiklus.filter(p => 
     p.keterangan && p.keterangan.startsWith('[PATUNGAN]')
   ).reduce((s, p) => s + p.jumlah_bayar, 0);
@@ -63,13 +63,9 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
     k.kategori === 'Perbaikan Mesin (Patungan)'
   ).reduce((s, k) => s + k.jumlah, 0);
 
-  const saldoPatunganPerPeriode = patunganPeriode - mesinExpPeriode;
+  const saldoPatunganPeriode = patunganPeriode - mesinExpPeriode;
 
-  // 6. SALDO REAL-TIME (Untuk Dashboard)
-  const totalBayarAll = state.pembayaran.reduce((s, p) => s + p.jumlah_bayar, 0);
-  const totalKeluarAll = state.pengeluaran.reduce((s, k) => s + k.jumlah, 0);
-  const saldoRealtime = totalBayarAll - totalKeluarAll;
-
+  // 6. SALDO REAL-TIME (Untuk Dashboard, tapi kita simpan saja untuk jaga-jaga)
   const patunganAll = state.pembayaran.filter(p => 
     p.keterangan && p.keterangan.startsWith('[PATUNGAN]')
   ).reduce((s, p) => s + p.jumlah_bayar, 0);
@@ -94,11 +90,12 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
     masuk, 
     keluar, 
     saldo: saldoAkhirCash,
-    saldoPatungan: saldoPatunganPerPeriode,
+    // ✅ SEKARANG LAPORAN BULANAN MENAMPILKAN SALDO PATUNGAN HANYA DI BULAN TERSEBUT!
+    saldoPatungan: saldoPatunganPeriode, 
     saldoAwalCash, 
     saldoAkhirCash,
-    saldoRealtime,
-    saldoPatunganRealtime,
+    saldoPatunganPeriode, 
+    saldoPatunganRealtime, // Tetap disediakan jika ingin digunakan di fitur lain
     targetB, 
     targetT
   };
