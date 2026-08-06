@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDb } from '../store/DbContext';
 import { fmtRp, MONTHS } from '../utils/format';
-import { getCycleMonthYear, filterByrBySiklus, filterKlrBySiklus, getWargaDeposit, getWargaTunggakanLalu } from '../utils/billing';
+import { getCycleMonthYear, filterByrBySiklus, filterKlrBySiklus, getWargaTunggakanLalu } from '../utils/billing';
 import { 
   Users, 
   FileText, 
@@ -86,7 +86,6 @@ const Dashboard = () => {
     const w = state.warga.find(x => x.id === mt?.warga_id);
     return { ...p, nama_warga: w ? w.nama : 'Unknown', nominal: p.jumlah_bayar, desc: p.keterangan, category: 'Patungan' };
   });
-  const pemasukanPatungan = sumNominal(pemasukanPatunganItems);
 
   // 5. Total Pemasukan Bulan Ini
   const masukItems = [...pendapatanAirItems, ...pemasukanLainItems, ...pemasukanPatunganItems];
@@ -98,7 +97,6 @@ const Dashboard = () => {
 
   // 7. Keluar Mesin / Patungan (E)
   const keluarPatunganItems = klrBln.filter(k => k.kategori === 'Perbaikan Mesin (Patungan)').map(k => ({ ...k, nominal: k.jumlah, desc: k.keterangan, nama_warga: k.kategori, category: 'Mesin Patungan' }));
-  const keluarPatungan = sumNominal(keluarPatunganItems);
 
   // 8. Total Pengeluaran Bulan Ini
   const keluarItems = [...keluarAirItems, ...keluarPatunganItems];

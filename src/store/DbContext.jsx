@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useNotification } from './NotificationContext';
 
@@ -111,6 +111,7 @@ export const DbProvider = ({ children }) => {
   }, [supabase, showToast]);
 
   // Listeners for Online/Offline
+  const isFirstRender = useRef(true);
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -127,7 +128,10 @@ export const DbProvider = ({ children }) => {
     window.addEventListener('offline', handleOffline);
 
     // Initial load
-    fetchData();
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      fetchData();
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -259,13 +263,13 @@ export const DbProvider = ({ children }) => {
     try {
       let dbErr = null;
       const dbTable = table === 'audit' ? 'audit_log' : table;
-      const sanitizeData = (d, t) => {
+      const sanitizeData = (d) => {
         if (!d) return d;
         const next = { ...d };
         delete next.id;
         return next;
       };
-      const payload = sanitizeData(data, dbTable);
+      const payload = sanitizeData(data);
       
       if (action === 'insert') {
         const { data: insertedData, error } = await supabase.from(dbTable).insert(payload).select().single();
