@@ -1,4 +1,3 @@
-// src/features/laporan-keuangan/components/WargaDetailTable.jsx
 import { fmtRp } from '../../../utils/format';
 import { getWargaBillingSummary } from '../../../utils/billingEngine';
 import { getWargaDeposit } from '../../../utils/billing';
@@ -84,8 +83,9 @@ const WargaRow = ({ warga, index, mtrBln, byrBln, targetB, targetT, state }) => 
       <div className="p-2 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 rounded-xl font-mono font-bold">
         {fmtRp(bayarVal)}
       </div>
-      <div className={`p-2 rounded-xl font-bold text-[10px] truncate ${statusInfo.color}`}>
-        {statusInfo.text}
+      <div className={`p-2 rounded-xl flex flex-col items-center justify-center text-[10px] font-bold ${statusInfo.color}`}>
+        <span className="leading-tight">{statusInfo.label}</span>
+        <span className="leading-tight mt-0.5 whitespace-nowrap">{statusInfo.amount}</span>
       </div>
     </div>
   );
@@ -93,22 +93,24 @@ const WargaRow = ({ warga, index, mtrBln, byrBln, targetB, targetT, state }) => 
 
 const getStatusInfo = (warga, sisa, bayarVal, depMasuk) => {
   if (warga.adalah_pengelola) {
-    return { text: 'Pengelola', color: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300' };
+    return { label: 'Pengelola', amount: '', color: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300' };
   }
   if (sisa <= 0) {
     if (sisa < 0) {
       return { 
-        text: `Lunas (+${fmtRp(Math.abs(sisa)).replace('Rp', '').trim()})`, 
+        label: 'Lunas (+', 
+        amount: `${fmtRp(Math.abs(sisa)).replace('Rp', '').trim()})`, 
         color: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 dark:text-emerald-300' 
       };
     }
-    return { text: 'Lunas', color: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 dark:text-emerald-300' };
+    return { label: 'Lunas', amount: '', color: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 dark:text-emerald-300' };
   }
-  const text = `Sisa ${fmtRp(sisa)}`;
+  const label = 'Kurang Bayar';
+  const amount = fmtRp(sisa);
   const color = (bayarVal > 0 || depMasuk > 0)
     ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-750 dark:text-amber-300'
     : 'bg-rose-100 dark:bg-rose-950/60 text-rose-755 dark:text-rose-350';
-  return { text, color };
+  return { label, amount, color };
 };
 
 export default WargaDetailTable;
