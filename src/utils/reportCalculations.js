@@ -1,9 +1,10 @@
 // src/utils/reportCalculations.js
+import { MONTHS } from './format.js';
 
 /**
  * Hitung total tagihan untuk periode tertentu
  */
-export const calculateTotalTagihan = (meteranList, wargaList, pembayaranList, bulan, tahun) => {
+export const calculateTotalTagihan = (meteranList, wargaList, pembayaranList) => {
   return meteranList.reduce((total, m) => {
     const warga = wargaList.find(w => w.id === m.warga_id);
     if (!warga || warga.alamat === 'SISTEM') return total;
@@ -21,7 +22,7 @@ export const calculateTotalTagihan = (meteranList, wargaList, pembayaranList, bu
 /**
  * Hitung pendapatan air dari pembayaran
  */
-export const calculatePendapatanAir = (pembayaranList, meteranList, wargaList, bulan, tahun) => {
+export const calculatePendapatanAir = (pembayaranList, meteranList, wargaList) => {
   return pembayaranList
     .filter(p => {
       const meteran = meteranList.find(m => m.id === p.meteran_id);
@@ -57,13 +58,12 @@ export const calculateMonthlySummary = (bulan, tahun, state) => {
   
   const pBln = pembayaran.filter(p => p.bulan === bulan && p.tahun === tahun);
   const kBln = pengeluaran.filter(k => {
-    const tgl = (k.tanggal || '').split('T')[0];
     const kMonth = new Date(k.tanggal).getMonth() + 1;
     const kYear = new Date(k.tanggal).getFullYear();
     return kMonth === bulan && kYear === tahun;
   });
 
-  const totalTagihan = calculateTotalTagihan(mBln, warga, pBln, bulan, tahun);
+  const totalTagihan = calculateTotalTagihan(mBln, warga, pBln);
   const totalBayarWater = calculatePendapatanAir(pBln, meteran, warga);
   
   const allNonAirPayments = pBln.filter(p => {
