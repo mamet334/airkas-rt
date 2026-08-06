@@ -1,12 +1,10 @@
-// src/features/laporan-keuangan/hooks/useLaporanData.js
 import { useMemo } from 'react';
 import { getCycleMonthYear, filterByrBySiklus, filterKlrBySiklus, getCycleDateRange } from '../../../utils/billing';
 import { calculateTotalTagihan, calculatePendapatanAir, calculateMonthlySummary } from '../../../utils/reportCalculations';
 
 export const useLaporanData = (state, selectedMonth, selectedYear, reportType) => {
   const cur = new Date();
-  // Hapus variabel cycle yang tidak dipakai
-  // const cycle = getCycleMonthYear(cur);
+  // const cycle = getCycleMonthYear(cur); // dihapus karena tidak dipakai
   
   const targetB = selectedMonth === 1 ? 12 : selectedMonth - 1;
   const targetT = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
@@ -33,7 +31,7 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
   const wargaAktif = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM');
 
   // 3. Perhitungan Tagihan & Pendapatan
-  const tagihan = calculateTotalTagihan(mtrBln, state.warga, state.pembayaran);
+  const tagihan = calculateTotalTagihan(mtrBln, state.warga, state.pembayaran, targetB, targetT);
   const pendapatanAir = calculatePendapatanAir(byrBln, state.meteran, state.warga);
   
   const keluarAir = klrSiklus

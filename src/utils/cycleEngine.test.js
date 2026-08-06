@@ -1,3 +1,4 @@
+/* global process */
 import { getCycleMonthYear as getOldCycle, getCycleDateRange as getOldRange } from './billing.js';
 import { getCycleTarget, getCycleDateRange as getNewRange, getCycleLabel } from './cycleEngine.js';
 

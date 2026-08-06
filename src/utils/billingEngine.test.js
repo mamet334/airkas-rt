@@ -1,3 +1,4 @@
+/* global process */
 import { getWargaDeposit as getOldDeposit, getWargaTunggakanLalu as getOldTunggakan } from './billing.js';
 import { calculateDeposit, calculateArrears, evaluatePaymentStatus, calculateBill, getWargaBillingSummary } from './billingEngine.js';
 
