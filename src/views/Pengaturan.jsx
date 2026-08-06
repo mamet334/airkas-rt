@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp } from '../utils/format';
-import { Save, Lock, Download, Upload, RotateCcw, AlertTriangle, Bell, BellOff, Key, Database } from 'lucide-react';
+import { Save, Lock, Download, Upload, RotateCcw, Bell, BellOff, Key, Database } from 'lucide-react';
 
 const Pengaturan = () => {
   const { state, isAdminUnlocked, executeWrite, updateAdminPin } = useDb();
