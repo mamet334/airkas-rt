@@ -48,7 +48,7 @@ const WargaRow = ({ warga, index, mtrBln, byrBln, targetB, targetT, state }) => 
   const m = mtrBln.find(x => x.warga_id === warga.id);
   const rawTagihan = m ? m.total_tagihan : 0;
   const bayarVal = m ? byrBln.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) : 0;
-  const { deposit: depMasuk, tunggakanLalu, kewajiban, sisa } = getWargaBillingSummary(
+  const { deposit: depMasuk, tunggakanLalu, sisa } = getWargaBillingSummary(
     warga.id, rawTagihan, bayarVal, targetB, targetT, state
   );
   const depositSetelah = getWargaDeposit(warga.id, targetB, targetT, state);
