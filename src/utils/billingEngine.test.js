@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getWargaDeposit as getOldDeposit, getWargaTunggakanLalu as getOldTunggakan } from '../billing';
-import { calculateDeposit, calculateArrears, evaluatePaymentStatus, calculateBill, getWargaBillingSummary } from '../billingEngine';
+import { getWargaDeposit as getOldDeposit, getWargaTunggakanLalu as getOldTunggakan } from './billing.js';
+import { calculateDeposit, calculateArrears, evaluatePaymentStatus, calculateBill, getWargaBillingSummary } from './billingEngine.js';
 
 const stateMock = {
   warga: [
@@ -23,7 +23,7 @@ const stateMock = {
 
 describe('Billing Engine Tests', () => {
   it('should calculate deposit correctly between old and new engine', () => {
-    stateMock.warga.forEach(() => { // Hapus parameter underscore
+    stateMock.warga.forEach(() => {
       const oldDep = getOldDeposit(1, 1, 2026, stateMock);
       const newDep = calculateDeposit(1, 1, 2026, stateMock);
       expect(newDep).toBe(oldDep);
@@ -31,7 +31,7 @@ describe('Billing Engine Tests', () => {
   });
 
   it('should calculate arrears correctly between old and new engine', () => {
-    stateMock.warga.forEach(() => { // Hapus parameter underscore
+    stateMock.warga.forEach(() => {
       const oldArrears = getOldTunggakan(1, 1, 2026, stateMock);
       const newArrears = calculateArrears(1, 1, 2026, stateMock);
       expect(newArrears).toBe(oldArrears);
@@ -39,21 +39,21 @@ describe('Billing Engine Tests', () => {
   });
 
   it('should evaluate payment status correctly', () => {
-    stateMock.warga.forEach(() => { // Hapus parameter underscore
+    stateMock.warga.forEach(() => {
       const result = evaluatePaymentStatus(100000, 80000, 20000);
       expect(typeof result).toBe('string');
     });
   });
 
   it('should calculate bill correctly', () => {
-    stateMock.warga.forEach(() => { // Hapus parameter underscore
+    stateMock.warga.forEach(() => {
       const bill = calculateBill(1, 1, 2026, stateMock);
       expect(typeof bill).toBe('number');
     });
   });
 
   it('should get warga billing summary correctly', () => {
-    stateMock.warga.forEach(() => { // Hapus parameter underscore
+    stateMock.warga.forEach(() => {
       const summary = getWargaBillingSummary(1, 100000, 80000, 1, 2026, stateMock);
       expect(summary).toHaveProperty('tagihan');
       expect(summary).toHaveProperty('deposit');
