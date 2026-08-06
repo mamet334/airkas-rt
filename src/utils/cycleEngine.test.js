@@ -1,40 +1,37 @@
-/* global process */
-import { getCycleMonthYear as getOldCycle, getCycleDateRange as getOldRange } from './billing.js';
-import { getCycleTarget, getCycleDateRange as getNewRange, getCycleLabel } from './cycleEngine.js';
+import { describe, it, expect } from 'vitest';
+import { getCycleMonthYear as getOldCycle, getCycleDateRange as getOldRange } from '../billing';
+import { getCycleTarget, getCycleDateRange as getNewRange, getCycleLabel } from '../cycleEngine';
 
-let passed = true;
+describe('Cycle Engine Parity Checks', () => {
+  it('should match cycle target for given dates', () => {
+    const testCases = [
+      { dateStr: '2026-06-14T10:00:00Z', expectedMonth: 5, expectedYear: 2026 },
+      { dateStr: '2026-06-15T10:00:00Z', expectedMonth: 6, expectedYear: 2026 },
+      { dateStr: '2026-01-10T10:00:00Z', expectedMonth: 12, expectedYear: 2025 },
+      { dateStr: null, expectedMonth: undefined, expectedYear: undefined },
+    ];
+    testCases.forEach(({ dateStr, expectedMonth, expectedYear }) => {
+      const newRes = getCycleTarget(dateStr);
+      expect(newRes.month).toBe(expectedMonth);
+      expect(newRes.year).toBe(expectedYear);
+    });
+  });
 
-const checkParityTarget = (dateStr) => {
-  const oldRes = getOldCycle(dateStr);
-  const newRes = getCycleTarget(dateStr);
-  if (oldRes.month !== newRes.month || oldRes.year !== newRes.year) {
-    console.error(`MISMATCH on target for ${dateStr}: Old(${oldRes.month}/${oldRes.year}) vs New(${newRes.month}/${newRes.year})`);
-    passed = false;
-  }
-};
+  it('should match cycle date ranges for given month and year', () => {
+    const testCases = [
+      { month: 6, year: 2026 },
+      { month: 1, year: 2026 }
+    ];
+    testCases.forEach(({ month, year }) => {
+      const oldRes = getOldRange(month, year);
+      const newRes = getNewRange(month, year);
+      expect(newRes.start).toBe(oldRes.start);
+      expect(newRes.end).toBe(oldRes.end);
+    });
+  });
 
-const checkParityRange = (month, year) => {
-  const oldRes = getOldRange(month, year);
-  const newRes = getNewRange(month, year);
-  if (oldRes.start !== newRes.start || oldRes.end !== newRes.end) {
-    console.error(`MISMATCH on range for ${month}/${year}: Old(${oldRes.start} to ${oldRes.end}) vs New(${newRes.start} to ${newRes.end})`);
-    passed = false;
-  }
-};
-
-// Tests
-checkParityTarget('2026-06-14T10:00:00Z'); // Should map to May (5)
-checkParityTarget('2026-06-15T10:00:00Z'); // Should map to June (6)
-checkParityTarget('2026-01-10T10:00:00Z'); // Should map to December 2025
-checkParityTarget(null);
-
-checkParityRange(6, 2026);
-checkParityRange(1, 2026);
-
-if (passed) {
-  console.log('SUCCESS: Logic Parity Check 100% PASS (0 Mismatch)');
-  console.log('Test Cycle Label:', getCycleLabel(1, 2026));
-} else {
-  console.log('FAILED: Mismatch detected');
-  process.exit(1);
-}
+  it('should generate correct cycle label', () => {
+    const label = getCycleLabel(1, 2026);
+    expect(label).toBe('15 Desember 2025 - 14 Januari 2026');
+  });
+});
