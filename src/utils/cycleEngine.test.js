@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCycleMonthYear as getOldCycle, getCycleDateRange as getOldRange } from '../billing';
+import { getCycleDateRange as getOldRange } from '../billing'; // Hapus getOldCycle
 import { getCycleTarget, getCycleDateRange as getNewRange, getCycleLabel } from '../cycleEngine';
 
 describe('Cycle Engine Parity Checks', () => {
