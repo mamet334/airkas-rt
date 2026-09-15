@@ -7,9 +7,10 @@ const DbContext = createContext(null);
 
 const SUPABASE_URL = "https://psfrkevdcuuyyefeuhps.supabase.co";
 const SUPABASE_KEY = "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2";
-const DEFAULT_ADMIN_PIN = "slamet2026";
 const ADMIN_PIN_HASH_KEY = 'airkas_admin_pin_hash';
 const LEGACY_ADMIN_PIN_KEY = 'airkas_admin_pin';
+const DEFAULT_ADMIN_PIN = "slamet2026";
+const SCREEN_LOCKED_KEY = 'airkasrt_screen_locked';
 
 const encodeText = (text) => new TextEncoder().encode(text);
 const hashText = async (text) => {
@@ -40,7 +41,13 @@ export const useDb = () => {
 
 export const DbProvider = ({ children }) => {
   const { showToast, showAlert } = useNotification();
-  const [supabase] = useState(() => createClient(SUPABASE_URL, SUPABASE_KEY));
+
+  const [supabase] = useState(() => createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    }
+  }));
 
   // Core Data States
   const [state, setState] = useState({
@@ -55,11 +62,41 @@ export const DbProvider = ({ children }) => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(
-    () => sessionStorage.getItem('airkasrt_admin_unlocked') === 'true'
+
+  // Auth state — null = belum login, object = sudah login
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Screen lock — PIN quick-lock, hanya berlaku jika sudah login
+  const [isScreenLocked, setIsScreenLocked] = useState(
+    () => sessionStorage.getItem(SCREEN_LOCKED_KEY) === 'true'
   );
 
-  // Fetch data from cloud
+  // isAdminUnlocked = true hanya jika: sudah login DAN layar tidak terkunci
+  const isAdminUnlocked = !!authUser && !isScreenLocked;
+
+  // ─── Supabase Auth Listener ───────────────────────────────────────────────
+  useEffect(() => {
+    // Cek session awal
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    // Dengarkan perubahan auth (login / logout / token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+      // Jika logout, pastikan screen lock juga di-reset
+      if (!session) {
+        setIsScreenLocked(false);
+        sessionStorage.removeItem(SCREEN_LOCKED_KEY);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  // ─── Fetch Data ───────────────────────────────────────────────────────────
   const fetchData = useCallback(async (silent = false) => {
     if (!window.navigator.onLine) {
       setIsLoading(false);
@@ -110,7 +147,7 @@ export const DbProvider = ({ children }) => {
     }
   }, [supabase, showToast]);
 
-  // Listeners for Online/Offline
+  // ─── Online / Offline Listeners ───────────────────────────────────────────
   const isFirstRender = useRef(true);
   useEffect(() => {
     const handleOnline = () => {
@@ -127,7 +164,6 @@ export const DbProvider = ({ children }) => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Initial load
     if (isFirstRender.current) {
       isFirstRender.current = false;
       fetchData();
@@ -139,49 +175,78 @@ export const DbProvider = ({ children }) => {
     };
   }, [fetchData, showToast]);
 
-  // Auth Operations
-  const unlockAdmin = useCallback(async (pin) => {
+  // ─── Auth Operations ──────────────────────────────────────────────────────
+
+  /** Login dengan email + password via Supabase Auth */
+  const signIn = useCallback(async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      showToast('Login gagal: ' + error.message, 'error');
+      return false;
+    }
+    // Buka layar jika sebelumnya terkunci
+    setIsScreenLocked(false);
+    sessionStorage.removeItem(SCREEN_LOCKED_KEY);
+    showToast('Selamat datang, Admin!', 'success');
+    return true;
+  }, [supabase, showToast]);
+
+  /** Logout — hapus session Supabase */
+  const signOut = useCallback(() => {
+    showAlert({
+      title: 'Keluar dari Admin',
+      message: 'Anda akan keluar dari sesi admin. Untuk masuk kembali diperlukan email dan password.',
+      type: 'warning',
+      onConfirm: async () => {
+        await supabase.auth.signOut();
+        setIsScreenLocked(false);
+        sessionStorage.removeItem(SCREEN_LOCKED_KEY);
+        showToast('Sesi admin telah ditutup.', 'info');
+      }
+    });
+  }, [supabase, showAlert, showToast]);
+
+  /** Kunci layar dengan PIN — hanya berlaku jika sudah login */
+  const lockScreen = useCallback(() => {
+    if (!authUser) return;
+    showAlert({
+      title: 'Kunci Layar',
+      message: 'Layar akan dikunci. Masukkan PIN untuk membuka kembali tanpa harus login ulang.',
+      type: 'warning',
+      onConfirm: () => {
+        setIsScreenLocked(true);
+        sessionStorage.setItem(SCREEN_LOCKED_KEY, 'true');
+        showToast('Layar terkunci. Masukkan PIN untuk melanjutkan.', 'info');
+      }
+    });
+  }, [authUser, showAlert, showToast]);
+
+  /** Buka layar dengan PIN (quick-lock) — hanya jika sudah login tapi layar terkunci */
+  const unlockScreen = useCallback(async (pin) => {
     const activeHash = await getStoredAdminPinHash();
     const inputHash = await hashText(pin);
     if (inputHash === activeHash) {
-      sessionStorage.setItem('airkasrt_admin_unlocked', 'true');
-      setIsAdminUnlocked(true);
-      showToast('Akses Admin Terbuka! Selamat bekerja.', 'success');
+      setIsScreenLocked(false);
+      sessionStorage.removeItem(SCREEN_LOCKED_KEY);
+      showToast('Layar berhasil dibuka!', 'success');
       return true;
     }
-
-    showToast('PIN Salah! Akses ditolak.', 'error');
+    showToast('PIN salah! Akses ditolak.', 'error');
     return false;
   }, [showToast]);
 
+  /** Ubah PIN quick-lock */
   const updateAdminPin = useCallback(async (oldPin, newPin) => {
     const currentHash = await getStoredAdminPinHash();
     const oldHash = await hashText(oldPin);
-
-    if (oldHash !== currentHash) {
-      return false;
-    }
-
+    if (oldHash !== currentHash) return false;
     const newHash = await hashText(newPin);
     localStorage.setItem(ADMIN_PIN_HASH_KEY, newHash);
     localStorage.removeItem(LEGACY_ADMIN_PIN_KEY);
     return true;
   }, []);
 
-  const lockAdmin = useCallback(() => {
-    showAlert({
-      title: 'Keluar Admin',
-      message: 'Keluar dari mode Admin? Halaman akan kembali ke mode Lihat-Saja (Public View).',
-      type: 'warning',
-      onConfirm: () => {
-        sessionStorage.removeItem('airkasrt_admin_unlocked');
-        setIsAdminUnlocked(false);
-        showToast('Mode Admin Ditutup', 'info');
-      }
-    });
-  }, [showAlert, showToast]);
-
-  // Write Operations Helper (Online Only)
+  // ─── Write Operations ──────────────────────────────────────────────────────
   const executeWrite = useCallback(async ({ table, action, data, id, logMsg }) => {
     if (!window.navigator.onLine) {
       showToast('Aksi gagal: Tidak ada koneksi internet. Silakan hubungkan perangkat Anda.', 'error');
@@ -190,7 +255,7 @@ export const DbProvider = ({ children }) => {
 
     // 1. Create audit log record
     const auditRecord = {
-      username: isAdminUnlocked ? 'Admin RT (Slamet)' : 'Sistem/Warga',
+      username: isAdminUnlocked ? `Admin (${authUser?.email || 'Admin RT'})` : 'Sistem/Warga',
       aksi: action.toUpperCase(),
       detail: logMsg,
       created_at: new Date().toISOString()
@@ -211,9 +276,8 @@ export const DbProvider = ({ children }) => {
         if (existing && existing.length > 0) {
           const dupDetail = `⛔ DUPLIKAT SERVER DITOLAK: Patungan warga_id ${data.warga_id} periode ${data.bulan}/${data.tahun} sudah ada (existing id: ${existing[0].id}). Insert dibatalkan.`;
           showToast('⛔ Duplikat terdeteksi di server! Patungan warga ini sudah tercatat di periode yang sama. Transaksi dibatalkan.', 'error');
-          // Catat penolakan di audit log
           await supabase.from('audit_log').insert({ aksi: 'BLOCKED', detail: dupDetail, created_at: new Date().toISOString() });
-          return data.id; // Return tanpa insert
+          return data.id;
         }
       } catch (dupErr) {
         console.warn('Gagal cek duplikat patungan, lanjutkan insert:', dupErr);
@@ -223,7 +287,6 @@ export const DbProvider = ({ children }) => {
     // 2. Perform optimistic state update
     setState(prev => {
       const nextState = { ...prev };
-      // Update Audit Logs locally
       nextState.audit = [auditRecord, ...nextState.audit].slice(0, 100);
 
       if (table === 'warga') {
@@ -253,13 +316,13 @@ export const DbProvider = ({ children }) => {
           }
         }
       }
-      
+
       return nextState;
     });
 
     let returnedId = (data && data.id) ? data.id : id;
 
-    // 3. Write to Supabase (No Queue Fallback)
+    // 3. Write to Supabase
     try {
       let dbErr = null;
       const dbTable = table === 'audit' ? 'audit_log' : table;
@@ -270,11 +333,11 @@ export const DbProvider = ({ children }) => {
         return next;
       };
       const payload = sanitizeData(data);
-      
+
       if (action === 'insert') {
         const { data: insertedData, error } = await supabase.from(dbTable).insert(payload).select().single();
         dbErr = error;
-        
+
         if (insertedData && insertedData.id && data.id) {
           returnedId = insertedData.id;
           setState(prev => {
@@ -293,24 +356,24 @@ export const DbProvider = ({ children }) => {
         const { error } = await supabase.from(dbTable).delete().eq('id', id);
         dbErr = error;
       }
-      
+
       // Push audit log to cloud
       const dbAuditRecord = { ...auditRecord };
-      delete dbAuditRecord.username; // Remove because column doesn't exist in DB
+      delete dbAuditRecord.username;
       await supabase.from('audit_log').insert(dbAuditRecord);
 
       if (dbErr) throw dbErr;
       showToast('Data berhasil disimpan ke Cloud', 'success');
-      fetchData(true); // silent pull to keep ids/dates in perfect sync
-      
+      fetchData(true);
+
       return returnedId;
     } catch (err) {
       console.warn('Gagal nulis ke Supabase:', err);
       showToast('Gagal menyimpan data ke server. Pastikan koneksi internet stabil.', 'error');
-      fetchData(true); // Re-fetch to sync actual state after failed optimistic update
-      throw err; // Stop caller execution on failure to maintain integrity
+      fetchData(true);
+      throw err;
     }
-  }, [supabase, isAdminUnlocked, showToast, fetchData]);
+  }, [supabase, isAdminUnlocked, authUser, showToast, fetchData]);
 
   const putusKoneksi = useCallback(() => {
     showAlert({
@@ -327,10 +390,15 @@ export const DbProvider = ({ children }) => {
     <DbContext.Provider value={{
       state,
       isLoading,
+      authLoading,
       isOnline,
+      authUser,
       isAdminUnlocked,
-      unlockAdmin,
-      lockAdmin,
+      isScreenLocked,
+      signIn,
+      signOut,
+      lockScreen,
+      unlockScreen,
       updateAdminPin,
       executeWrite,
       putusKoneksi,

@@ -1,0 +1,58 @@
+pengeluaran:
+15 Oktober 2025---15 nov 2025
+ -solar ogut 1 jerigen 330000
+ -oli 2 liter 90000
+ -oli 3 liter 135000
+ -gemuk 60000
+ -oli 2 liter 90000
+ -solar eceran 320000
+ -perbaikan pipa 15000
+ -oli 2 liter 90000
+
+15 nov 2025--- 15 des 2025
+ -solar eceran 400000
+ -oli 3 liter 135000
+ -oli 2 litern 90000
+ -solar ogut 1 jerigen 320000
+ -perbaikan pipa 26000
+ -0li 2 liter 90000
+ -las knalpot 30000
+
+15 des 2025 --- 15 jan 2026
+ -oli 5 liter 200000 /15-12-25
+ -solar i jerigen 335000 /20-12-25
+ -oli 10 liter 400000 /28-12-25
+ -las knalpot 30000 /29-12-25
+ -selang spiral+klem 90000 /30-12-25
+ -solar 1 jerigen 340000 /7-1-26
+ -selang spiral+klam 90000 /10-1-26
+ -selang spiral 3,5 meter 260000 /10-1-26
+
+15 Januari 2026 --- 15 Februari 2026
+ -solar ogut 1 jerigen 330000
+ -kipas impeler pompa 150000
+ -plunger kobota 130000
+ -oli 5 liter 200000
+
+15 Februari 2026 --- 15 Maret 2026
+ -solar ogut 1 jerigen 330000 /26-2-2026
+ -oli 10 liter 400000 /27-2-2026
+ -kunci inggris 50000 /8-3-2026
+ -perbaikan saluran radiator 83000 /13-3-2026
+
+15 Maret 2026 --- 15 april 2026
+ -solar 1 jerigen 330000 /15-3-2026
+ -oli 10 liter 400000 /17-3-2026
+ -kran 30000 /20-3-2026
+ -solar 1 jerigen 330000 /27-3-2026
+ -sedotan solar 30000 /27-3-2026
+ -perbaikan pipa 56000 /7-4-2026
+ -packing head mesin 80000 /5-4-2026
+
+15 april 2026 --- 15 mei 2026
+ -solar ogut 1 jerigen 330000 /12-4-2026
+ -oli 10 liter 400000 /17-4-2026
+ -solar 1 jerigen 330000 /26-4-2026
+ -oli 10 liter 400000 /2-5-2026
+ -perbaikan pipa 8000 /4-5-2026
+ -solar eceran 320000 /11-5-2026 

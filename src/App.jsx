@@ -22,6 +22,8 @@ import {
   Settings,
   Lock,
   Unlock,
+  LogIn,
+  LogOut,
   Wifi,
   WifiOff,
   Sun,
@@ -32,20 +34,24 @@ import {
 } from 'lucide-react';
 
 const App = () => {
-  const { 
-    state, 
-    isOnline, 
-    isAdminUnlocked, 
-    unlockAdmin, 
-    lockAdmin, 
-    pendingWritesCount 
+  const {
+    state,
+    isOnline,
+    authUser,
+    authLoading,
+    isAdminUnlocked,
+    isScreenLocked,
+    signIn,
+    signOut,
+    lockScreen,
+    unlockScreen,
   } = useDb();
-  
+
   const { showToast } = useNotification();
 
   // Navigation state
   const [activeTab, setActiveTab] = useState('dashboard');
-  
+
   // Theme state — read from localStorage, fallback to system preference
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('airkasrt_theme');
@@ -70,8 +76,16 @@ const App = () => {
   // Mobile sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // PIN modal state
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  // Modal state
+  // mode: 'login' = form email+password | 'pin' = form PIN quick-lock
+  const [modalMode, setModalMode] = useState('login');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Login form state
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // PIN form state
   const [pinInput, setPinInput] = useState('');
 
   const toggleTheme = () => {
@@ -80,38 +94,64 @@ const App = () => {
     localStorage.setItem('airkasrt_theme', nextDark ? 'dark' : 'light');
   };
 
-  // === PERBAIKAN UTAMA DI SINI ===
-  // Gunakan useMemo untuk menentukan tab yang benar-benar ditampilkan
-  // tanpa memanggil setActiveTab di dalam useEffect
+  // Menentukan tab yang ditampilkan — pengaturan hanya untuk admin
   const displayTab = React.useMemo(() => {
     if (!isAdminUnlocked && activeTab === 'pengaturan') {
       return 'dashboard';
     }
     return activeTab;
   }, [isAdminUnlocked, activeTab]);
-  // ================================
 
+  // ─── Header button logic ──────────────────────────────────────────────────
+  // State flow:
+  //   1. Belum login                        → tombol buka modal login
+  //   2. Sudah login & layar terkunci (PIN) → tombol buka modal PIN
+  //   3. Sudah login & aktif                → tombol kunci layar
   const handleAdminLockToggle = () => {
-    if (isAdminUnlocked) {
-      lockAdmin();
-      showToast('Kunci Admin berhasil ditutup.', 'info');
-    } else {
+    if (!authUser) {
+      // Belum login → buka modal login
+      setModalMode('login');
+      setLoginForm({ email: '', password: '' });
+      setIsModalOpen(true);
+    } else if (isScreenLocked) {
+      // Sudah login tapi layar terkunci → buka modal PIN
+      setModalMode('pin');
       setPinInput('');
-      setIsPinModalOpen(true);
-    }
-  };
-
-  const handlePinSubmit = (e) => {
-    e.preventDefault();
-    const success = unlockAdmin(pinInput);
-    if (success) {
-      setIsPinModalOpen(false);
-      showToast('Kunci Admin berhasil dibuka!', 'success');
+      setIsModalOpen(true);
     } else {
-      showToast('PIN salah. Silakan coba lagi.', 'error');
+      // Sudah login & aktif → kunci layar
+      lockScreen();
     }
   };
 
+  // ─── Form handlers ────────────────────────────────────────────────────────
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    const success = await signIn(loginForm.email, loginForm.password);
+    setLoginLoading(false);
+    if (success) {
+      setIsModalOpen(false);
+      setLoginForm({ email: '', password: '' });
+    }
+  };
+
+  const handlePinSubmit = async (e) => {
+    e.preventDefault();
+    const success = await unlockScreen(pinInput);
+    if (success) {
+      setIsModalOpen(false);
+      setPinInput('');
+    }
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setLoginForm({ email: '', password: '' });
+    setPinInput('');
+  };
+
+  // ─── Nav items ────────────────────────────────────────────────────────────
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, view: Dashboard },
     { id: 'warga', label: 'Data Warga', icon: Users, view: DataWarga },
@@ -123,13 +163,40 @@ const App = () => {
     { id: 'pengaturan', label: 'Pengaturan', icon: Settings, view: Pengaturan, adminOnly: true }
   ];
 
-  // Ganti activeTab dengan displayTab di sini agar komponen yang dirender mengikuti hasil useMemo
   const ActiveView = navItems.find(item => item.id === displayTab)?.view || Dashboard;
   const rtName = state.settings?.nama_rt || 'RT 01 / RW 05';
 
+  // Tombol header — teks & ikon berubah sesuai state
+  const headerBtnConfig = (() => {
+    if (!authUser) return {
+      icon: <LogIn size={12} />,
+      label: 'Buka Kunci Admin',
+      className: 'border-amber-250 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+    };
+    if (isScreenLocked) return {
+      icon: <Lock size={12} />,
+      label: 'Layar Terkunci',
+      className: 'border-rose-250 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+    };
+    return {
+      icon: <Unlock size={12} />,
+      label: 'Kunci Terbuka',
+      className: 'border-emerald-250 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+    };
+  })();
+
+  // Tampilkan loading singkat saat session Supabase dicek pertama kali
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+        <div className="text-slate-400 text-sm">Memuat sesi...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex transition-colors duration-200">
-      
+
       {/* SIDEBAR (Desktop) */}
       <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-100 border-r border-slate-800/80 transform lg:translate-x-0 transition-transform duration-305 ease-out flex flex-col no-print ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -147,7 +214,7 @@ const App = () => {
               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{rtName}</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(false)}
             className="lg:hidden text-slate-400 hover:text-white"
           >
@@ -159,7 +226,7 @@ const App = () => {
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.filter(item => !item.adminOnly || isAdminUnlocked).map(item => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id; // Tetap gunakan activeTab untuk highlight klik terakhir user
+            const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}
@@ -180,7 +247,7 @@ const App = () => {
           })}
         </nav>
 
-        {/* Sidebar Footer / Connection & Lock state */}
+        {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-850 bg-slate-950/20 space-y-2">
           <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
             <span className="flex items-center gap-1">
@@ -196,18 +263,23 @@ const App = () => {
                 </>
               )}
             </span>
-            {pendingWritesCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">
-                {pendingWritesCount} pending sync
-              </span>
-            )}
           </div>
+          {/* Tombol logout di sidebar — hanya tampil jika sudah login */}
+          {authUser && (
+            <button
+              onClick={signOut}
+              className="w-full px-3 py-1.5 rounded-xl text-[10px] font-bold border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 transition-all flex items-center justify-center gap-1.5"
+            >
+              <LogOut size={11} />
+              Keluar ({authUser.email})
+            </button>
+          )}
         </div>
       </aside>
 
       {/* OVERLAY for Mobile Sidebar */}
       {isSidebarOpen && (
-        <div 
+        <div
           onClick={() => setIsSidebarOpen(false)}
           className="fixed inset-0 z-30 bg-slate-950/40 backdrop-blur-xs lg:hidden no-print"
         ></div>
@@ -215,43 +287,29 @@ const App = () => {
 
       {/* MAIN VIEWPORT LAYOUT */}
       <div className="flex-1 lg:pl-64 print:pl-0 flex flex-col min-w-0">
-        
+
         {/* HEADER BAR */}
         <header className="sticky top-0 z-20 h-16 bg-white dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-700/40 flex items-center justify-between px-6 no-print">
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(true)}
               className="lg:hidden p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               <Menu size={20} />
             </button>
-            {/* Ganti activeTab dengan displayTab untuk judul header */}
             <h2 className="text-sm font-bold text-slate-805 dark:text-white hidden md:block">
               {navItems.find(item => item.id === displayTab)?.label}
             </h2>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Admin Lock Button */}
+            {/* Admin Lock Button — satu tombol, teks/ikon berubah sesuai state */}
             <button
               onClick={handleAdminLockToggle}
-              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all flex items-center gap-1.5 shadow-sm active:scale-95 ${
-                isAdminUnlocked
-                  ? 'border-emerald-250 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-                  : 'border-amber-250 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
-              }`}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all flex items-center gap-1.5 shadow-sm active:scale-95 ${headerBtnConfig.className}`}
             >
-              {isAdminUnlocked ? (
-                <>
-                  <Unlock size={12} />
-                  Kunci Terbuka
-                </>
-              ) : (
-                <>
-                  <Lock size={12} />
-                  Buka Kunci Admin
-                </>
-              )}
+              {headerBtnConfig.icon}
+              {headerBtnConfig.label}
             </button>
 
             {/* Dark Mode toggle */}
@@ -295,51 +353,117 @@ const App = () => {
         )}
       </div>
 
-      {/* ADMIN PIN CONFIRMATION MODAL */}
-      {isPinModalOpen && (
+      {/* MODAL — Login email+password ATAU PIN quick-lock */}
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in no-print">
-          <form 
-            onSubmit={handlePinSubmit}
-            className="max-w-sm w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4"
-          >
-            <div className="text-center">
-              <span className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3">
-                <Lock size={20} />
-              </span>
-              <h3 className="text-md font-bold text-slate-900 dark:text-white">Buka Kunci Akses Admin</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Masukkan PIN keamanan Anda untuk mengedit data transaksi dan database.
-              </p>
-            </div>
 
-            <div>
-              <input
-                type="password"
-                required
-                autoFocus
-                placeholder="Masukkan PIN Admin..."
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                className="px-3 py-2.5 w-full rounded-xl text-center font-mono font-bold text-lg tracking-widest border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
-            </div>
+          {/* ── MODE LOGIN (belum login) ── */}
+          {modalMode === 'login' && (
+            <form
+              onSubmit={handleLoginSubmit}
+              className="max-w-sm w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4"
+            >
+              <div className="text-center">
+                <span className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3">
+                  <LogIn size={20} />
+                </span>
+                <h3 className="text-md font-bold text-slate-900 dark:text-white">Login Admin</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Masukkan email dan password administrator.
+                </p>
+              </div>
 
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setIsPinModalOpen(false)}
-                className="px-4 py-2 w-1/2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 w-1/2 rounded-xl text-xs font-bold text-white bg-teal-605 hover:bg-teal-500 shadow-md active:scale-95 transition-all"
-              >
-                Buka Kunci
-              </button>
-            </div>
-          </form>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    autoFocus
+                    placeholder="admin@example.com"
+                    value={loginForm.email}
+                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                    className="px-3 py-2.5 w-full rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Password</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Password..."
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    className="px-3 py-2.5 w-full rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleModalClose}
+                  className="px-4 py-2 w-1/2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  className="px-4 py-2 w-1/2 rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-md active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {loginLoading ? 'Memproses...' : 'Login'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ── MODE PIN (sudah login, layar terkunci) ── */}
+          {modalMode === 'pin' && (
+            <form
+              onSubmit={handlePinSubmit}
+              className="max-w-sm w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4"
+            >
+              <div className="text-center">
+                <span className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3">
+                  <Lock size={20} />
+                </span>
+                <h3 className="text-md font-bold text-slate-900 dark:text-white">Buka Layar</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Masukkan PIN untuk melanjutkan sesi.
+                </p>
+              </div>
+
+              <div>
+                <input
+                  type="password"
+                  required
+                  autoFocus
+                  placeholder="Masukkan PIN..."
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  className="px-3 py-2.5 w-full rounded-xl text-center font-mono font-bold text-lg tracking-widest border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleModalClose}
+                  className="px-4 py-2 w-1/2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 w-1/2 rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-md active:scale-95 transition-all"
+                >
+                  Buka
+                </button>
+              </div>
+            </form>
+          )}
+
         </div>
       )}
 

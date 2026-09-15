@@ -3,10 +3,10 @@ import { useState, useEffect } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp } from '../utils/format';
-import { Save, Lock, Download, Upload, RotateCcw, Bell, BellOff, Key, Database } from 'lucide-react';
+import { Save, Lock, Download, Upload, RotateCcw, Bell, BellOff, Key, Database, UserPlus, Shield, CheckCircle2 } from 'lucide-react';
 
 const Pengaturan = () => {
-  const { state, isAdminUnlocked, executeWrite, updateAdminPin } = useDb();
+  const { state, isAdminUnlocked, authUser, executeWrite, updateAdminPin } = useDb();
   const { showToast, showAlert, requestNotificationPermission, showBrowserNotification, subscribeToPushNotifications, unsubscribePushNotifications, pushSubscription, pushSupported } = useNotification();
 
   // General Profile State
@@ -28,6 +28,12 @@ const Pengaturan = () => {
     newPin: '',
     confirmNewPin: ''
   });
+
+  // Add Admin State
+  const [addAdminStep, setAddAdminStep] = useState('form'); // 'form' | 'otp' | 'done'
+  const [addAdminEmail, setAddAdminEmail] = useState('');
+  const [addAdminOtp, setAddAdminOtp] = useState('');
+  const [addAdminLoading, setAddAdminLoading] = useState(false);
 
   // Load current settings from state
   useEffect(() => {
@@ -107,6 +113,90 @@ const Pengaturan = () => {
 
     showToast('PIN Keamanan Admin berhasil diubah!', 'success');
     setPinForm({ oldPin: '', newPin: '', confirmNewPin: '' });
+  };
+
+  // Langkah 1: Kirim OTP ke email admin yang sedang login
+  const handleRequestOtp = async (e) => {
+    e.preventDefault();
+    if (!addAdminEmail.trim() || !addAdminEmail.includes('@')) {
+      showToast('Masukkan email yang valid.', 'warning');
+      return;
+    }
+    setAddAdminLoading(true);
+    try {
+      // OTP dikirim ke email admin yang SEDANG LOGIN (step-up verification)
+      // Menggunakan Supabase signInWithOtp sebagai trigger OTP ke email sendiri
+      const { createClient } = await import('@supabase/supabase-js');
+      const { supabase } = await import('../store/DbContext').then(() => {
+        // Gunakan supabase instance dari window atau re-import
+        return { supabase: window.__supabase };
+      });
+
+      // Fallback: panggil Edge Function untuk kirim OTP
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await import('@supabase/supabase-js')).createClient(
+            import.meta.env.VITE_SUPABASE_URL || "https://psfrkevdcuuyyefeuhps.supabase.co",
+            import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2"
+          ).auth.getSession().then(s => s.data.session?.access_token || '')}`
+        },
+        body: JSON.stringify({ action: 'request_otp', new_admin_email: addAdminEmail })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Gagal mengirim OTP');
+      setAddAdminStep('otp');
+      showToast('OTP telah dikirim ke email Anda. Periksa inbox.', 'success');
+    } catch (err) {
+      showToast('Gagal mengirim OTP: ' + err.message, 'error');
+    } finally {
+      setAddAdminLoading(false);
+    }
+  };
+
+  // Langkah 2: Verifikasi OTP dan buat akun admin baru via Edge Function
+  const handleVerifyOtpAndCreate = async (e) => {
+    e.preventDefault();
+    if (!addAdminOtp.trim()) {
+      showToast('Masukkan kode OTP.', 'warning');
+      return;
+    }
+    setAddAdminLoading(true);
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://psfrkevdcuuyyefeuhps.supabase.co";
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2";
+      const { createClient } = await import('@supabase/supabase-js');
+      const client = createClient(supabaseUrl, supabaseKey);
+      const session = (await client.auth.getSession()).data.session;
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          action: 'verify_and_create',
+          new_admin_email: addAdminEmail,
+          otp: addAdminOtp
+        })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Gagal membuat admin baru');
+      setAddAdminStep('done');
+      showToast(`Admin baru (${addAdminEmail}) berhasil ditambahkan!`, 'success');
+    } catch (err) {
+      showToast('Gagal: ' + err.message, 'error');
+    } finally {
+      setAddAdminLoading(false);
+    }
+  };
+
+  const handleResetAddAdmin = () => {
+    setAddAdminStep('form');
+    setAddAdminEmail('');
+    setAddAdminOtp('');
   };
 
   const handleRequestNotifications = async () => {
@@ -502,6 +592,105 @@ const Pengaturan = () => {
           </div>
         </div>
       </div>
+
+      {/* CARD 5: KELOLA ADMIN — hanya tampil jika sudah login */}
+      {authUser && (
+        <div className="p-5 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-indigo-200/60 dark:border-indigo-700/40 space-y-4">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+            <Shield size={16} className="text-indigo-500" />
+            Kelola Administrator
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Admin saat ini: <span className="font-semibold text-slate-700 dark:text-slate-300">{authUser.email}</span>
+          </p>
+
+          {/* Step: form input email admin baru */}
+          {addAdminStep === 'form' && (
+            <form onSubmit={handleRequestOtp} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  Email Admin Baru
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="admin-baru@example.com"
+                  value={addAdminEmail}
+                  onChange={(e) => setAddAdminEmail(e.target.value)}
+                  className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                Kode OTP akan dikirim ke email Anda (<strong>{authUser.email}</strong>) sebagai verifikasi.
+              </p>
+              <button
+                type="submit"
+                disabled={addAdminLoading}
+                className="px-4 py-2 w-full rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
+              >
+                <UserPlus size={14} />
+                {addAdminLoading ? 'Mengirim OTP...' : 'Tambah Admin Baru'}
+              </button>
+            </form>
+          )}
+
+          {/* Step: verifikasi OTP */}
+          {addAdminStep === 'otp' && (
+            <form onSubmit={handleVerifyOtpAndCreate} className="space-y-3">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                Kode OTP telah dikirim ke <strong>{authUser.email}</strong>. Masukkan kode tersebut di bawah.
+              </p>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Kode OTP</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="123456"
+                  value={addAdminOtp}
+                  onChange={(e) => setAddAdminOtp(e.target.value)}
+                  className="px-3 py-2 w-full rounded-xl text-center font-mono font-bold text-lg tracking-widest border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetAddAdmin}
+                  className="px-4 py-2 w-1/3 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={addAdminLoading}
+                  className="px-4 py-2 w-2/3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {addAdminLoading ? 'Memproses...' : 'Verifikasi & Buat Admin'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Step: selesai */}
+          {addAdminStep === 'done' && (
+            <div className="text-center space-y-3 py-2">
+              <CheckCircle2 size={32} className="text-emerald-500 mx-auto" />
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Admin <span className="text-emerald-600">{addAdminEmail}</span> berhasil ditambahkan!
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Admin baru dapat langsung login dengan email tersebut dan password sementara yang dikirimkan via email.
+              </p>
+              <button
+                onClick={handleResetAddAdmin}
+                className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Tambah Admin Lain
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
