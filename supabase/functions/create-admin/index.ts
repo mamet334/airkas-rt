@@ -1,203 +1,168 @@
 // supabase/functions/create-admin/index.ts
-// Edge Function — berjalan di Supabase server, bukan di browser.
-// Aman memakai service_role key karena tidak pernah dikirim ke client.
+// Edge Function kelola administrator AirKas RT.
+// Berjalan di server Supabase — service_role key tidak pernah dikirim ke browser.
 //
-// CARA DEPLOY:
-//   supabase functions deploy create-admin --no-verify-jwt
+// Aksi (POST JSON { action, ... }):
+//   list_admins                       — admin yang login
+//   create_admin { email, password }  — admin yang login + OTP email terverifikasi ≤ 10 menit
+//   delete_admin { user_id }          — admin yang login + OTP email terverifikasi ≤ 10 menit
 //
-// ENV yang dibutuhkan di Supabase Dashboard → Functions → create-admin → Secrets:
-//   SUPABASE_URL         = https://psfrkevdcuuyyefeuhps.supabase.co
-//   SUPABASE_SERVICE_KEY = <service_role key dari Project Settings → API>
+// OTP dikirim & diverifikasi oleh Supabase Auth di aplikasi (signInWithOtp + verifyOtp
+// ke email admin yang sedang login). Function ini hanya memeriksa klaim `amr` di JWT:
+// harus ada metode "otp" yang timestamp-nya masih baru. Tidak ada OTP yang disimpan di sini.
+//
+// Env otomatis dari Supabase: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+// Deploy dengan verify_jwt = false (token divalidasi manual lewat auth.getUser).
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const OTP_MAX_AGE_SECONDS = 10 * 60;
+const MIN_PASSWORD_LENGTH = 8;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// In-memory OTP store (per function instance, cukup untuk skala RT)
-// Key: admin_user_id, Value: { otp, new_admin_email, expires_at }
-const otpStore = new Map<string, { otp: string; new_admin_email: string; expires_at: number }>();
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+
+const decodeJwtPayload = (jwt: string) => {
+  const part = jwt.split('.')[1] ?? '';
+  const b64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+  return JSON.parse(atob(b64));
+};
+
+// Token harus sudah divalidasi (auth.getUser) sebelum klaimnya dipercaya.
+const hasRecentOtp = (jwt: string) => {
+  try {
+    const amr: { method: string; timestamp: number }[] = decodeJwtPayload(jwt).amr ?? [];
+    const now = Math.floor(Date.now() / 1000);
+    return amr.some((m) => m.method === 'otp' && now - m.timestamp <= OTP_MAX_AGE_SECONDS);
+  } catch {
+    return false;
+  }
+};
 
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return json({ error: 'Method tidak diizinkan.' }, 405);
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    if (!jwt) return json({ error: 'Silakan login sebagai admin.' }, 401);
 
-    // Verifikasi token admin yang memanggil function
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Client dengan anon key untuk verifikasi token pemanggil
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } }
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // Dapatkan user yang memanggil
-    const { data: { user: callerUser }, error: authError } = await callerClient.auth.getUser();
-    if (authError || !callerUser) {
-      return new Response(JSON.stringify({ error: 'Token tidak valid' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    // Validasi token pemanggil di server Auth
+    const { data: { user: caller }, error: authError } = await admin.auth.getUser(jwt);
+    if (authError || !caller) return json({ error: 'Sesi tidak valid. Silakan login ulang.' }, 401);
 
-    // Client dengan service_role untuk operasi admin
-    const adminClient = createClient(supabaseUrl, serviceKey);
-
-    // Verifikasi pemanggil adalah admin yang terdaftar
-    const { data: adminCheck } = await adminClient
+    // Pemanggil harus terdaftar sebagai admin
+    const { data: callerRow } = await admin
       .from('admin_users')
       .select('user_id')
-      .eq('user_id', callerUser.id)
-      .single();
+      .eq('user_id', caller.id)
+      .maybeSingle();
+    if (!callerRow) return json({ error: 'Akses ditolak: bukan administrator.' }, 403);
 
-    if (!adminCheck) {
-      return new Response(JSON.stringify({ error: 'Akses ditolak: bukan administrator' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    const { action, email, password, user_id } = await req.json().catch(() => ({}));
 
-    const body = await req.json();
-    const { action, new_admin_email, otp } = body;
-
-    // ── ACTION: request_otp ─────────────────────────────────────────────
-    if (action === 'request_otp') {
-      if (!new_admin_email) {
-        return new Response(JSON.stringify({ error: 'Email admin baru diperlukan' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Generate OTP 6 digit
-      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 menit
-
-      // Simpan OTP ke store (keyed by caller admin user_id)
-      otpStore.set(callerUser.id, {
-        otp: generatedOtp,
-        new_admin_email,
-        expires_at: expiresAt
-      });
-
-      // Kirim OTP ke email admin yang SEDANG LOGIN (bukan email baru)
-      // Menggunakan Supabase Auth Admin untuk kirim email
-      const { error: emailError } = await adminClient.auth.admin.generateLink({
-        type: 'magiclink',
-        email: callerUser.email!,
-      });
-
-      // Kirim via email sederhana menggunakan Supabase built-in
-      // (Supabase akan kirim ke callerUser.email)
-      // Untuk saat ini gunakan cara alternatif: kirim OTP manual via email
-      // NOTE: Implementasi email sebenarnya tergantung SMTP setup di Supabase
-      // Untuk development: OTP dikembalikan di response (hapus di production)
-      console.log(`[create-admin] OTP untuk ${callerUser.email}: ${generatedOtp}`);
-
-      return new Response(JSON.stringify({
-        success: true,
-        message: `OTP dikirim ke ${callerUser.email}`,
-        // HAPUS baris debug_otp ini di production:
-        debug_otp: generatedOtp
-      }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // ── ACTION: verify_and_create ───────────────────────────────────────
-    if (action === 'verify_and_create') {
-      if (!otp || !new_admin_email) {
-        return new Response(JSON.stringify({ error: 'OTP dan email diperlukan' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Ambil OTP dari store
-      const stored = otpStore.get(callerUser.id);
-      if (!stored) {
-        return new Response(JSON.stringify({ error: 'OTP tidak ditemukan. Minta OTP baru.' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Cek kadaluarsa
-      if (Date.now() > stored.expires_at) {
-        otpStore.delete(callerUser.id);
-        return new Response(JSON.stringify({ error: 'OTP sudah kadaluarsa. Minta OTP baru.' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Verifikasi OTP dan email
-      if (stored.otp !== otp || stored.new_admin_email !== new_admin_email) {
-        return new Response(JSON.stringify({ error: 'OTP salah atau email tidak cocok.' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // OTP valid — buat user baru dengan password sementara acak
-      const tempPassword = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-      const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-        email: new_admin_email,
-        password: tempPassword,
-        email_confirm: true, // langsung aktif tanpa perlu konfirmasi email
-      });
-
-      if (createError || !newUser.user) {
-        return new Response(JSON.stringify({ error: createError?.message || 'Gagal membuat user' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Daftarkan ke tabel admin_users
-      const { error: insertError } = await adminClient
+    // ── list_admins ────────────────────────────────────────────────────────
+    if (action === 'list_admins') {
+      const { data: rows, error } = await admin
         .from('admin_users')
-        .insert({ user_id: newUser.user.id });
+        .select('user_id, created_at')
+        .order('created_at');
+      if (error) throw error;
 
-      if (insertError) {
-        // Rollback: hapus user yang baru dibuat
-        await adminClient.auth.admin.deleteUser(newUser.user.id);
-        return new Response(JSON.stringify({ error: 'Gagal mendaftarkan admin: ' + insertError.message }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Bersihkan OTP dari store
-      otpStore.delete(callerUser.id);
-
-      // Kirim email dengan password sementara ke admin baru
-      // (Supabase akan kirim invite email otomatis)
-      await adminClient.auth.admin.generateLink({
-        type: 'recovery',
-        email: new_admin_email,
-      });
-
-      return new Response(JSON.stringify({
-        success: true,
-        message: `Admin baru ${new_admin_email} berhasil dibuat. Email password sementara telah dikirim.`
-      }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      const admins = await Promise.all((rows ?? []).map(async (row) => {
+        const { data } = await admin.auth.admin.getUserById(row.user_id);
+        return {
+          user_id: row.user_id,
+          email: data.user?.email ?? '(tidak diketahui)',
+          created_at: row.created_at,
+          last_sign_in_at: data.user?.last_sign_in_at ?? null,
+        };
+      }));
+      return json({ admins });
     }
 
-    return new Response(JSON.stringify({ error: 'Action tidak dikenal' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    if (action !== 'create_admin' && action !== 'delete_admin') {
+      return json({ error: 'Aksi tidak dikenal.' }, 400);
+    }
 
+    // Aksi sensitif: wajib OTP email yang baru diverifikasi
+    if (!hasRecentOtp(jwt)) {
+      return json({ error: 'Verifikasi OTP diperlukan atau sudah kedaluwarsa. Minta kode OTP baru.', code: 'otp_required' }, 403);
+    }
+
+    // ── create_admin ───────────────────────────────────────────────────────
+    if (action === 'create_admin') {
+      const cleanEmail = String(email ?? '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return json({ error: 'Format email tidak valid.' }, 400);
+      }
+      if (String(password ?? '').length < MIN_PASSWORD_LENGTH) {
+        return json({ error: `Password awal minimal ${MIN_PASSWORD_LENGTH} karakter.` }, 400);
+      }
+
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email: cleanEmail,
+        password: String(password),
+        email_confirm: true, // langsung aktif, tanpa email konfirmasi
+      });
+      if (createError || !created.user) {
+        const msg = createError?.message ?? 'Gagal membuat akun.';
+        return json({ error: /already|registered|exists/i.test(msg) ? 'Email sudah terdaftar.' : msg }, 400);
+      }
+
+      const { error: insertError } = await admin.from('admin_users').insert({ user_id: created.user.id });
+      if (insertError) {
+        await admin.auth.admin.deleteUser(created.user.id); // rollback akun
+        throw insertError;
+      }
+
+      await admin.from('audit_log').insert({
+        aksi: 'ADMIN',
+        detail: `Menambah administrator ${cleanEmail} (oleh ${caller.email})`,
+        created_at: new Date().toISOString(),
+      });
+      return json({ success: true, email: cleanEmail });
+    }
+
+    // ── delete_admin ───────────────────────────────────────────────────────
+    if (!user_id) return json({ error: 'Admin yang akan dihapus belum dipilih.' }, 400);
+
+    const { count } = await admin.from('admin_users').select('user_id', { count: 'exact', head: true });
+    if ((count ?? 0) <= 1) return json({ error: 'Tidak bisa menghapus administrator terakhir.' }, 400);
+
+    const { data: targetRow } = await admin
+      .from('admin_users')
+      .select('user_id')
+      .eq('user_id', user_id)
+      .maybeSingle();
+    if (!targetRow) return json({ error: 'Administrator tidak ditemukan.' }, 404);
+
+    const { data: target } = await admin.auth.admin.getUserById(user_id);
+    // Hapus akun login; baris admin_users ikut terhapus (ON DELETE CASCADE)
+    const { error: deleteError } = await admin.auth.admin.deleteUser(user_id);
+    if (deleteError) throw deleteError;
+
+    await admin.from('audit_log').insert({
+      aksi: 'ADMIN',
+      detail: `Menghapus administrator ${target.user?.email ?? user_id} (oleh ${caller.email})`,
+      created_at: new Date().toISOString(),
+    });
+    return json({ success: true, self: user_id === caller.id });
   } catch (err) {
     console.error('[create-admin] Error:', err);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return json({ error: 'Terjadi kesalahan di server.' }, 500);
   }
 });

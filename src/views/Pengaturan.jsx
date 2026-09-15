@@ -1,12 +1,12 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
-import { fmtRp } from '../utils/format';
-import { Save, Lock, Download, Upload, RotateCcw, Bell, BellOff, Key, Database, UserPlus, Shield, CheckCircle2 } from 'lucide-react';
+import { fmtRp, fmtDateTime } from '../utils/format';
+import { Save, Lock, Download, Upload, RotateCcw, Bell, BellOff, Key, Database, UserPlus, Shield, CheckCircle2, Trash2 } from 'lucide-react';
 
 const Pengaturan = () => {
-  const { state, isAdminUnlocked, authUser, executeWrite, updateAdminPin } = useDb();
+  const { supabase, state, isAdminUnlocked, authUser, executeWrite, updateAdminPin, refreshData } = useDb();
   const { showToast, showAlert, requestNotificationPermission, showBrowserNotification, subscribeToPushNotifications, unsubscribePushNotifications, pushSubscription, pushSupported } = useNotification();
 
   // General Profile State
@@ -29,11 +29,15 @@ const Pengaturan = () => {
     confirmNewPin: ''
   });
 
-  // Add Admin State
-  const [addAdminStep, setAddAdminStep] = useState('form'); // 'form' | 'otp' | 'done'
-  const [addAdminEmail, setAddAdminEmail] = useState('');
-  const [addAdminOtp, setAddAdminOtp] = useState('');
-  const [addAdminLoading, setAddAdminLoading] = useState(false);
+  // Kelola Admin State
+  const [admins, setAdmins] = useState([]);
+  const [adminsLoading, setAdminsLoading] = useState(false);
+  const [newAdminForm, setNewAdminForm] = useState({ email: '', password: '' });
+  const [pendingAdminAction, setPendingAdminAction] = useState(null); // { type: 'create'|'delete', email, password?, user_id? }
+  const [adminOtp, setAdminOtp] = useState('');
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   // Load current settings from state
   useEffect(() => {
@@ -115,83 +119,153 @@ const Pengaturan = () => {
     setPinForm({ oldPin: '', newPin: '', confirmNewPin: '' });
   };
 
-  // Langkah 1: Kirim OTP ke email admin yang sedang login
-  const handleRequestOtp = async (e) => {
-    e.preventDefault();
-    if (!addAdminEmail.trim() || !addAdminEmail.includes('@')) {
-      showToast('Masukkan email yang valid.', 'warning');
-      return;
+  // ─── Kelola Administrator ─────────────────────────────────────────────────
+  // Tambah/hapus admin wajib OTP ke email admin yang sedang login. OTP dikirim & diverifikasi
+  // oleh Supabase Auth; Edge Function create-admin menolak aksi jika sesi belum lolos OTP (≤ 10 menit).
+  const callAdminFunction = useCallback(async (body) => {
+    const { data, error } = await supabase.functions.invoke('create-admin', { body });
+    if (error) {
+      let message = error.message;
+      try {
+        message = (await error.context.json()).error || message;
+      } catch {
+        // respons bukan JSON — pakai pesan bawaan
+      }
+      throw new Error(message);
     }
-    setAddAdminLoading(true);
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://psfrkevdcuuyyefeuhps.supabase.co";
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2";
-      const { createClient } = await import('@supabase/supabase-js');
-      const client = createClient(supabaseUrl, supabaseKey);
-      const session = (await client.auth.getSession()).data.session;
+    return data;
+  }, [supabase]);
 
-      // Panggil Edge Function untuk kirim OTP
-      const res = await fetch(`${supabaseUrl}/functions/v1/create-admin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({ action: 'request_otp', new_admin_email: addAdminEmail })
+  const loadAdmins = useCallback(async () => {
+    setAdminsLoading(true);
+    try {
+      const data = await callAdminFunction({ action: 'list_admins' });
+      setAdmins(data?.admins || []);
+    } catch (err) {
+      showToast('Gagal memuat daftar admin: ' + err.message, 'error');
+    } finally {
+      setAdminsLoading(false);
+    }
+  }, [callAdminFunction, showToast]);
+
+  useEffect(() => {
+    if (isAdminUnlocked) loadAdmins();
+  }, [isAdminUnlocked, loadAdmins]);
+
+  const sendAdminOtp = async (action) => {
+    setAdminBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: authUser.email,
+        options: { shouldCreateUser: false }
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Gagal mengirim OTP');
-      setAddAdminStep('otp');
-      showToast('OTP telah dikirim ke email Anda. Periksa inbox.', 'success');
+      if (error) throw error;
+      setPendingAdminAction(action);
+      setAdminOtp('');
+      showToast(`Kode OTP dikirim ke ${authUser.email}. Periksa inbox atau folder spam.`, 'success');
     } catch (err) {
       showToast('Gagal mengirim OTP: ' + err.message, 'error');
     } finally {
-      setAddAdminLoading(false);
+      setAdminBusy(false);
     }
   };
 
-  // Langkah 2: Verifikasi OTP dan buat akun admin baru via Edge Function
-  const handleVerifyOtpAndCreate = async (e) => {
+  const handleStartCreateAdmin = (e) => {
     e.preventDefault();
-    if (!addAdminOtp.trim()) {
+    const email = newAdminForm.email.trim().toLowerCase();
+    if (!email.includes('@')) {
+      showToast('Masukkan email yang valid.', 'warning');
+      return;
+    }
+    if (newAdminForm.password.length < 8) {
+      showToast('Password awal minimal 8 karakter.', 'warning');
+      return;
+    }
+    if (admins.some(a => (a.email || '').toLowerCase() === email)) {
+      showToast('Email tersebut sudah terdaftar sebagai admin.', 'warning');
+      return;
+    }
+    sendAdminOtp({ type: 'create', email, password: newAdminForm.password });
+  };
+
+  const handleStartDeleteAdmin = (target) => {
+    showAlert({
+      title: 'Hapus Administrator',
+      message: `Akun ${target.email} akan dihapus dan tidak bisa login lagi. Kode OTP akan dikirim ke email Anda untuk verifikasi. Lanjutkan?`,
+      type: 'danger',
+      onConfirm: () => sendAdminOtp({ type: 'delete', user_id: target.user_id, email: target.email })
+    });
+  };
+
+  const handleCancelAdminAction = () => {
+    setPendingAdminAction(null);
+    setAdminOtp('');
+  };
+
+  const handleConfirmAdminOtp = async (e) => {
+    e.preventDefault();
+    if (!adminOtp.trim()) {
       showToast('Masukkan kode OTP.', 'warning');
       return;
     }
-    setAddAdminLoading(true);
+    setAdminBusy(true);
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://psfrkevdcuuyyefeuhps.supabase.co";
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2";
-      const { createClient } = await import('@supabase/supabase-js');
-      const client = createClient(supabaseUrl, supabaseKey);
-      const session = (await client.auth.getSession()).data.session;
-
-      const res = await fetch(`${supabaseUrl}/functions/v1/create-admin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({
-          action: 'verify_and_create',
-          new_admin_email: addAdminEmail,
-          otp: addAdminOtp
-        })
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        email: authUser.email,
+        token: adminOtp.trim(),
+        type: 'email'
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Gagal membuat admin baru');
-      setAddAdminStep('done');
-      showToast(`Admin baru (${addAdminEmail}) berhasil ditambahkan!`, 'success');
+      if (otpError) throw new Error('Kode OTP salah atau sudah kedaluwarsa.');
+
+      if (pendingAdminAction.type === 'create') {
+        await callAdminFunction({
+          action: 'create_admin',
+          email: pendingAdminAction.email,
+          password: pendingAdminAction.password
+        });
+        showToast(`Admin ${pendingAdminAction.email} berhasil ditambahkan. Sampaikan password awal secara langsung dan minta segera diganti.`, 'success');
+        setNewAdminForm({ email: '', password: '' });
+      } else {
+        const result = await callAdminFunction({ action: 'delete_admin', user_id: pendingAdminAction.user_id });
+        showToast(`Admin ${pendingAdminAction.email} berhasil dihapus.`, 'success');
+        if (result?.self) {
+          await supabase.auth.signOut();
+          return;
+        }
+      }
+
+      setPendingAdminAction(null);
+      setAdminOtp('');
+      loadAdmins();
+      refreshData(true);
     } catch (err) {
       showToast('Gagal: ' + err.message, 'error');
     } finally {
-      setAddAdminLoading(false);
+      setAdminBusy(false);
     }
   };
 
-  const handleResetAddAdmin = () => {
-    setAddAdminStep('form');
-    setAddAdminEmail('');
-    setAddAdminOtp('');
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword.length < 8) {
+      showToast('Password baru minimal 8 karakter.', 'warning');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      showToast('Konfirmasi password tidak cocok.', 'error');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.newPassword });
+      if (error) throw error;
+      showToast('Password akun berhasil diganti.', 'success');
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      showToast('Gagal mengganti password: ' + err.message, 'error');
+    } finally {
+      setPasswordBusy(false);
+    }
   };
 
   const handleRequestNotifications = async () => {
@@ -599,9 +673,85 @@ const Pengaturan = () => {
             Admin saat ini: <span className="font-semibold text-slate-700 dark:text-slate-300">{authUser.email}</span>
           </p>
 
-          {/* Step: form input email admin baru */}
-          {addAdminStep === 'form' && (
-            <form onSubmit={handleRequestOtp} className="space-y-3">
+          {/* Daftar administrator */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Daftar Administrator</p>
+            {adminsLoading ? (
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">Memuat daftar admin...</p>
+            ) : (
+              <ul className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700/60">
+                {admins.map((a) => (
+                  <li key={a.user_id} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex items-center gap-1">
+                        {a.user_id === authUser.id && <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />}
+                        {a.email}
+                        {a.user_id === authUser.id && <span className="font-normal text-slate-400">(Anda)</span>}
+                      </p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                        Terakhir login: {a.last_sign_in_at ? fmtDateTime(a.last_sign_in_at) : 'belum pernah'}
+                      </p>
+                    </div>
+                    {admins.length > 1 && (
+                      <button
+                        type="button"
+                        title="Hapus administrator"
+                        onClick={() => handleStartDeleteAdmin(a)}
+                        disabled={adminBusy || !!pendingAdminAction}
+                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors disabled:opacity-40 shrink-0"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {pendingAdminAction ? (
+            /* Verifikasi OTP untuk aksi tambah/hapus */
+            <form onSubmit={handleConfirmAdminOtp} className="space-y-3 p-3 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/40">
+              <p className="text-xs text-slate-700 dark:text-slate-200">
+                {pendingAdminAction.type === 'create' ? 'Tambah admin ' : 'Hapus admin '}
+                <strong>{pendingAdminAction.email}</strong>
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Kode OTP telah dikirim ke <strong>{authUser.email}</strong>. Masukkan kode tersebut di bawah.
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                autoFocus
+                maxLength={10}
+                placeholder="123456"
+                value={adminOtp}
+                onChange={(e) => setAdminOtp(e.target.value.replace(/\D/g, ''))}
+                className="px-3 py-2 w-full rounded-xl text-center font-mono font-bold text-lg tracking-widest border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancelAdminAction}
+                  disabled={adminBusy}
+                  className="px-4 py-2 w-1/3 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-60"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={adminBusy}
+                  className={`px-4 py-2 w-2/3 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition-all disabled:opacity-60 ${pendingAdminAction.type === 'delete' ? 'bg-rose-600 hover:bg-rose-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
+                >
+                  {adminBusy ? 'Memproses...' : 'Verifikasi & Lanjutkan'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* Form tambah admin baru */
+            <form onSubmit={handleStartCreateAdmin} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
                   Email Admin Baru
@@ -609,81 +759,76 @@ const Pengaturan = () => {
                 <input
                   type="email"
                   required
+                  autoComplete="off"
                   placeholder="admin-baru@example.com"
-                  value={addAdminEmail}
-                  onChange={(e) => setAddAdminEmail(e.target.value)}
+                  value={newAdminForm.email}
+                  onChange={(e) => setNewAdminForm({ ...newAdminForm, email: e.target.value })}
+                  className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  Password Awal (min. 8 karakter)
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={newAdminForm.password}
+                  onChange={(e) => setNewAdminForm({ ...newAdminForm, password: e.target.value })}
                   className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <p className="text-[11px] text-slate-400 dark:text-slate-500">
                 Kode OTP akan dikirim ke email Anda (<strong>{authUser.email}</strong>) sebagai verifikasi.
+                Sampaikan password awal langsung ke admin baru dan minta segera diganti.
               </p>
               <button
                 type="submit"
-                disabled={addAdminLoading}
+                disabled={adminBusy}
                 className="px-4 py-2 w-full rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
               >
                 <UserPlus size={14} />
-                {addAdminLoading ? 'Mengirim OTP...' : 'Tambah Admin Baru'}
+                {adminBusy ? 'Mengirim OTP...' : 'Tambah Admin Baru'}
               </button>
             </form>
           )}
 
-          {/* Step: verifikasi OTP */}
-          {addAdminStep === 'otp' && (
-            <form onSubmit={handleVerifyOtpAndCreate} className="space-y-3">
-              <p className="text-xs text-slate-600 dark:text-slate-300">
-                Kode OTP telah dikirim ke <strong>{authUser.email}</strong>. Masukkan kode tersebut di bawah.
-              </p>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Kode OTP</label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  placeholder="123456"
-                  value={addAdminOtp}
-                  onChange={(e) => setAddAdminOtp(e.target.value)}
-                  className="px-3 py-2 w-full rounded-xl text-center font-mono font-bold text-lg tracking-widest border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleResetAddAdmin}
-                  className="px-4 py-2 w-1/3 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={addAdminLoading}
-                  className="px-4 py-2 w-2/3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md active:scale-95 transition-all disabled:opacity-60"
-                >
-                  {addAdminLoading ? 'Memproses...' : 'Verifikasi & Buat Admin'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Step: selesai */}
-          {addAdminStep === 'done' && (
-            <div className="text-center space-y-3 py-2">
-              <CheckCircle2 size={32} className="text-emerald-500 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                Admin <span className="text-emerald-600">{addAdminEmail}</span> berhasil ditambahkan!
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Admin baru dapat langsung login dengan email tersebut dan password sementara yang dikirimkan via email.
-              </p>
-              <button
-                onClick={handleResetAddAdmin}
-                className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Tambah Admin Lain
-              </button>
-            </div>
-          )}
+          {/* Ganti password akun sendiri */}
+          <form onSubmit={handleChangePassword} className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <Key size={14} />
+              Ganti Password Akun Anda
+            </p>
+            <input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="Password baru (min. 8 karakter)"
+              value={passwordForm.newPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+              className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="Ulangi password baru"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+              className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              type="submit"
+              disabled={passwordBusy}
+              className="px-4 py-2 w-full rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+            >
+              {passwordBusy ? 'Menyimpan...' : 'Simpan Password Baru'}
+            </button>
+          </form>
         </div>
       )}
     </div>

@@ -394,6 +394,7 @@ export const DbProvider = ({ children }) => {
 
   return (
     <DbContext.Provider value={{
+      supabase,
       state,
       isLoading,
       authLoading,
