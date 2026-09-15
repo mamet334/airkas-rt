@@ -1,6 +1,5 @@
 import React, { Suspense, lazy, useState } from 'react'
 import { useDb } from './store/DbContext';
-import { useNotification } from './store/NotificationContext';
 const Dashboard = lazy(() => import('./views/Dashboard'));
 const DataWarga = lazy(() => import('./views/DataWarga'));
 const PencatatanMeteran = lazy(() => import('./views/PencatatanMeteran'));
@@ -46,8 +45,6 @@ const App = () => {
     lockScreen,
     unlockScreen,
   } = useDb();
-
-  const { showToast } = useNotification();
 
   // Navigation state
   const [activeTab, setActiveTab] = useState('dashboard');

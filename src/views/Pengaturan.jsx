@@ -124,23 +124,18 @@ const Pengaturan = () => {
     }
     setAddAdminLoading(true);
     try {
-      // OTP dikirim ke email admin yang SEDANG LOGIN (step-up verification)
-      // Menggunakan Supabase signInWithOtp sebagai trigger OTP ke email sendiri
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://psfrkevdcuuyyefeuhps.supabase.co";
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2";
       const { createClient } = await import('@supabase/supabase-js');
-      const { supabase } = await import('../store/DbContext').then(() => {
-        // Gunakan supabase instance dari window atau re-import
-        return { supabase: window.__supabase };
-      });
+      const client = createClient(supabaseUrl, supabaseKey);
+      const session = (await client.auth.getSession()).data.session;
 
-      // Fallback: panggil Edge Function untuk kirim OTP
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-admin`, {
+      // Panggil Edge Function untuk kirim OTP
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-admin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await import('@supabase/supabase-js')).createClient(
-            import.meta.env.VITE_SUPABASE_URL || "https://psfrkevdcuuyyefeuhps.supabase.co",
-            import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2"
-          ).auth.getSession().then(s => s.data.session?.access_token || '')}`
+          'Authorization': `Bearer ${session?.access_token || ''}`
         },
         body: JSON.stringify({ action: 'request_otp', new_admin_email: addAdminEmail })
       });
