@@ -264,7 +264,7 @@ const Pengaturan = () => {
           type: 'danger',
           onConfirm: async () => {
             // Drop current data
-            for (const table of ['pembayaran', 'meteran', 'warga', 'pengeluaran', 'audit']) {
+            for (const table of ['pembayaran', 'meteran', 'warga', 'pengeluaran']) { // audit_log append-only, tidak dihapus
               const items = state[table] || [];
               for (const item of items) {
                 await executeWrite({ table, action: 'delete', id: item.id, logMsg: 'Restore cleanup' });
@@ -317,7 +317,7 @@ const Pengaturan = () => {
       type: 'danger',
       onConfirm: async () => {
         // Drop all records sequentially to avoid FK violation issues
-        for (const table of ['pembayaran', 'meteran', 'warga', 'pengeluaran', 'audit']) {
+        for (const table of ['pembayaran', 'meteran', 'warga', 'pengeluaran']) { // audit_log append-only, tidak dihapus
           const items = state[table] || [];
           for (const item of items) {
             await executeWrite({ table, action: 'delete', id: item.id, logMsg: 'Reset database wipe' });

@@ -349,27 +349,33 @@ export const DbProvider = ({ children }) => {
             return nextState;
           });
         }
-      } else if (action === 'update') {
-        const { error } = await supabase.from(dbTable).update(payload).eq('id', id);
+      } else if (action === 'update' || action === 'delete') {
+        // RLS yang menolak UPDATE/DELETE tidak mengembalikan error, hanya 0 baris.
+        // .select() mengembalikan baris yang benar-benar berubah agar penolakan terdeteksi.
+        const query = action === 'update'
+          ? supabase.from(dbTable).update(payload).eq('id', id)
+          : supabase.from(dbTable).delete().eq('id', id);
+        const { data: affected, error } = await query.select('id');
         dbErr = error;
-      } else if (action === 'delete') {
-        const { error } = await supabase.from(dbTable).delete().eq('id', id);
-        dbErr = error;
+        if (!dbErr && (!affected || affected.length === 0)) {
+          dbErr = new Error('Perubahan ditolak server (0 baris). Sesi admin mungkin sudah habis — silakan login ulang.');
+        }
       }
 
-      // Push audit log to cloud
+      if (dbErr) throw dbErr;
+
+      // Push audit log to cloud (hanya setelah penulisan utama benar-benar berhasil)
       const dbAuditRecord = { ...auditRecord };
       delete dbAuditRecord.username;
-      await supabase.from('audit_log').insert(dbAuditRecord);
-
-      if (dbErr) throw dbErr;
+      const { error: auditErr } = await supabase.from('audit_log').insert(dbAuditRecord);
+      if (auditErr) console.warn('Gagal mencatat audit log:', auditErr);
       showToast('Data berhasil disimpan ke Cloud', 'success');
       fetchData(true);
 
       return returnedId;
     } catch (err) {
       console.warn('Gagal nulis ke Supabase:', err);
-      showToast('Gagal menyimpan data ke server. Pastikan koneksi internet stabil.', 'error');
+      showToast(`Gagal menyimpan data ke server: ${err.message || 'periksa koneksi internet.'}`, 'error');
       fetchData(true);
       throw err;
     }
