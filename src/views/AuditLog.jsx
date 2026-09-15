@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { useDb } from '../store/DbContext';
-import { useNotification } from '../store/NotificationContext';
 import { fmtDateTime } from '../utils/format';
-import { Search, Trash2, Lock } from 'lucide-react';
+import { Search, Lock } from 'lucide-react';
 
 const AuditLog = () => {
-  const { state, isAdminUnlocked, executeWrite } = useDb();
-  const { showToast, showAlert } = useNotification();
+  const { state } = useDb();
   const [search, setSearch] = useState('');
 
   const filteredLogs = [...state.audit]
@@ -17,26 +15,6 @@ const AuditLog = () => {
       return action.includes(term) || detail.includes(term);
     })
     .sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
-
-  const handleClearLogs = () => {
-    showAlert({
-      title: 'Hapus Semua Log Audit',
-      message: 'Apakah Anda yakin ingin menghapus semua histori aktivitas log audit secara permanen? Tindakan ini tidak dapat dibatalkan.',
-      type: 'danger',
-      onConfirm: async () => {
-        // Run delete all logs
-        for (const log of state.audit) {
-          await executeWrite({
-            table: 'audit',
-            action: 'delete',
-            id: log.id,
-            logMsg: `Menghapus log audit ID ${log.id}`
-          });
-        }
-        showToast('Semua log audit berhasil dikosongkan.', 'success');
-      }
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -55,20 +33,11 @@ const AuditLog = () => {
           />
         </div>
 
-        {isAdminUnlocked ? (
-          <button
-            onClick={handleClearLogs}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-600 transition-all flex items-center gap-1.5 active:scale-95"
-          >
-            <Trash2 size={14} />
-            Kosongkan Log
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-xl border border-amber-200/40 dark:border-amber-900/30">
-            <Lock size={14} />
-            Buka Kunci Admin untuk mengosongkan log audit
-          </div>
-        )}
+        {/* Log audit append-only: tidak bisa diubah/dihapus oleh siapa pun, termasuk admin */}
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/30 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/50">
+          <Lock size={14} />
+          Log audit bersifat permanen dan tidak dapat dihapus
+        </div>
       </div>
 
       {/* AUDIT LOG TABLE CARD */}
