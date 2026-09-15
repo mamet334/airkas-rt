@@ -2,8 +2,8 @@
 
 Date: September 15, 2026
 Author: Slamet (via Claude, security audit + roadmap alignment discussion)
-Status: COMPLETED (Implemented & Verified on 15 Sept 2026)
-Last updated: September 15, 2026 — Implementation completed, migration applied, admin verified.
+Status: IMPLEMENTED — keamanan RLS terverifikasi di produksi; tes akhir "Kelola Administrator" (OTP email) masih menunggu (lihat §5 dan §12.7)
+Last updated: September 15, 2026 (malam) — KOREKSI: status "COMPLETED" sebelumnya tidak akurat karena RLS ternyata belum aktif. Sudah diperbaiki & diverifikasi; fitur Kelola Administrator ditulis ulang. Detail di §12.
 Supersedes: previous `1789455701955_TASK_ADMIN_LOGIN.md` (9 Sept 2026) — same scope, updated to explicitly sequence against the chatbot/Orange Data Mining roadmap below.
 
 > This document REPLACES the "Database Security Hardening (RLS-only)"
@@ -125,6 +125,15 @@ ini dimulai, sebagai fondasi yang aman.
   invitee.
 - OTP is **not** used for routine login. Routine login = email +
   password only.
+- *(Update 15 Sept malam)* OTP juga dipakai saat **menghapus** admin.
+  OTP dikirim & diverifikasi oleh **Supabase Auth** (template email
+  "Magic link or OTP"), bukan dibuat/disimpan oleh Edge Function. Lihat §12.3.
+- *(Update 15 Sept malam)* Pergantian admin **harus bisa dilakukan dari
+  menu Pengaturan** tanpa akses ke Supabase Dashboard, agar aplikasi bisa
+  diserahkan ke pengelola berikutnya.
+- *(Update 15 Sept malam)* Kolom `warga.telepon` **jangan diisi** selama
+  SELECT pada tabel `warga` masih terbuka untuk publik — nomor HP akan
+  terbaca siapa pun yang memegang anon key.
 - **The first admin account is created manually** by Slamet via the
   Supabase Auth dashboard, outside the application. The in-app
   "Add Admin" flow applies only to the second admin onward.
@@ -146,6 +155,9 @@ ini dimulai, sebagai fondasi yang aman.
 
 ## 4. CURRENT STATE (FACTS, NOT ASSUMPTIONS)
 
+> Kondisi per 9 Sept 2026, **sebelum** task ini dikerjakan. Kondisi
+> terbaru ada di §12.
+
 - `src/store/DbContext.jsx` lines 8–33: Supabase client setup (public
   anon key), `DEFAULT_ADMIN_PIN = "slamet2026"` hardcoded in plain
   text, PIN hashed client-side with unsalted SHA-256.
@@ -164,33 +176,40 @@ ini dimulai, sebagai fondasi yang aman.
 
 ## 5. DEFINITION OF DONE
 
-- [ ] First admin (created manually via Supabase dashboard) can log
+Status per 15 Sept 2026 malam (✅ = terverifikasi, ⏳ = menunggu tes):
+
+- [x] ✅ First admin (created manually via Supabase dashboard) can log
       into the app with email + password.
-- [ ] Routine login: email + password only, no OTP, validated via
+- [x] ✅ Routine login: email + password only, no OTP, validated via
       Supabase Auth — PIN is no longer the primary gate.
-- [ ] After login, PIN can be used as an in-session quick-lock;
+- [x] ✅ After login, PIN can be used as an in-session quick-lock;
       logout / session expiry always requires full email+password
       login again (PIN alone cannot regain access after logout).
-- [ ] "Add Admin" menu (visible only to a logged-in admin): enter new
+- [ ] ⏳ "Add Admin" menu (visible only to a logged-in admin): enter new
       admin's email → OTP sent to **the currently logged-in admin's
-      email** → admin enters the OTP → new admin account/invite is
-      created only then.
-- [ ] Attempting to add an admin with a wrong/empty OTP **fails** —
-      no new account is created.
-- [ ] The second admin (created via invite) can log in and has the
-      same permissions as the first admin.
-- [ ] RLS: INSERT/UPDATE/DELETE on `pembayaran`, `pengeluaran`,
+      email** → admin enters the OTP → new admin account is
+      created only then. *(Kode & Edge Function v2 sudah live; template
+      email & Site URL sudah dikonfigurasi; tes tertunda karena batas
+      kirim email Supabase.)*
+- [ ] ⏳ Attempting to add an admin with a wrong/empty OTP **fails** —
+      no new account is created. *(Edge Function sudah terbukti menolak
+      panggilan tanpa login / token palsu — HTTP 401.)*
+- [ ] ⏳ The second admin can log in and has the same permissions as the
+      first admin.
+- [x] ✅ RLS: INSERT/UPDATE/DELETE on `pembayaran`, `pengeluaran`,
       `warga`, `meteran`, `settings` succeeds only for a user who is
       logged in AND recorded as an admin. Fails for anon/unauthenticated
-      users and for logged-in users who are not admins.
-- [ ] SELECT on those five tables, and the entire resident dashboard,
+      users and for logged-in users who are not admins. *(Diuji 15 Sept;
+      lihat §12.2.)*
+- [x] ✅ SELECT on those five tables, and the entire resident dashboard,
       continues to work normally **with zero login required** (zero
       regression).
-- [ ] `service_role` key is not found in the client React bundle
-      (verify against the build output, not just source).
-- [ ] No change to financial calculation/report output compared to
+- [x] ✅ `service_role` key is not found in the client React bundle
+      (dicek pada `dist/` hasil build 15 Sept 19:51 — 0 temuan).
+- [x] ✅ No change to financial calculation/report output compared to
       before this change (zero regression in `billingEngine` and
-      `reportCalculations`).
+      `reportCalculations`). *(15/15 unit test lolos; rekap kas via RPC
+      tetap Rp1.901.000 saat diuji sebagai anon.)*
 
 ## 6. VERIFICATION STEPS
 
@@ -275,6 +294,21 @@ as part of this task.
 ## 11. LOG IMPLEMENTASI & PERUBAHAN AKTUAL (15 September 2026)
 
 Bagian ini mendokumentasikan seluruh pekerjaan teknis yang telah dikerjakan, file yang dimodifikasi, konfigurasi SQL yang dijalankan, serta langkah yang dilakukan di Supabase Dashboard hingga status task ini selesai (*completed*).
+
+> ⚠️ **KOREKSI (15 Sept 2026 malam):** Beberapa klaim di §11 ternyata tidak
+> sesuai kondisi database sebenarnya:
+> - §11.2 menyebut aturan RLS "dikunci ketat" dan §11.3 menyebut "seluruh
+>   policy RLS aktif berhasil diterapkan" — **tidak benar**. Policy lama
+>   bernama `a` (ALL, public, true) masih aktif, sehingga siapa pun tanpa
+>   login masih bisa menulis/menghapus data. Policy `admin_users_select`
+>   juga menyebabkan error `42P17 infinite recursion`.
+> - Edge Function versi pertama (§11.2 poin 2) tidak berfungsi: OTP tidak
+>   pernah terkirim via email, OTP dikembalikan di response (`debug_otp`),
+>   dan admin baru tidak pernah menerima password.
+>
+> Semua sudah diperbaiki — lihat **§12**. File migrasi
+> `20260915_rls_admin_auth.sql` disimpan sebagai riwayat saja; yang
+> benar-benar diterapkan adalah `20260915b_fix_rls_admin.sql`.
 
 ### 11.1 Ringkasan Perubahan Kode Frontend (`src/`)
 
@@ -373,3 +407,157 @@ Bagian ini mendokumentasikan seluruh pekerjaan teknis yang telah dikerjakan, fil
   - Tombol aksi admin dan menu navigasi Pengaturan terbuka dengan benar.
   - Sesi tersimpan dengan baik di browser.
   - Kunci layar in-session (PIN) berfungsi normal.
+
+---
+
+## 12. AUDIT, PERBAIKAN & KONDISI TERBARU (15 September 2026 malam)
+
+### 12.1 Temuan audit (dicek langsung ke database produksi)
+
+| Temuan | Dampak |
+|---|---|
+| Policy lama `a` (ALL, public, `true`) masih aktif di `warga`, `meteran`, `pembayaran`, `pengeluaran`, `settings` | Siapa pun dengan anon key bisa ubah/hapus data keuangan tanpa login |
+| Migrasi pertama hanya men-`DROP` policy bernama `warga_all` / `Enable all for public` (nama tebakan) | Policy `a` tidak pernah terhapus; policy baru untuk 5 tabel juga tidak ada di database |
+| `admin_users_select` membaca tabelnya sendiri | Error `42P17 infinite recursion` saat dipakai |
+| `audit_log` bisa di-INSERT oleh anon | Log audit bisa dipalsukan |
+| `executeWrite` tidak mengecek jumlah baris | UPDATE/DELETE yang ditolak RLS tetap menampilkan toast "berhasil" |
+| Tombol "Kosongkan Log" | Tidak pernah benar-benar menghapus (audit_log append-only), tapi menampilkan "berhasil" |
+| Edge Function `create-admin` v1 | Tidak berfungsi (lihat koreksi di §11) |
+
+### 12.2 Perbaikan yang sudah live
+
+**Database** — migrasi `supabase/migrations/20260915b_fix_rls_admin.sql`
+(diterapkan ke produksi, tercatat sebagai `fix_rls_admin_write_lock`):
+- Fungsi `public.is_admin()` (`SECURITY DEFINER`) — cek admin tanpa rekursi.
+- `warga`, `meteran`, `pembayaran`, `pengeluaran`: SELECT publik;
+  INSERT/UPDATE/DELETE hanya `is_admin()`.
+- `settings`: SELECT publik; UPDATE hanya admin.
+- `audit_log`: SELECT publik; INSERT hanya admin; tetap tanpa UPDATE/DELETE.
+- `admin_users`: SELECT hanya admin.
+
+Hasil verifikasi (transaksi di-ROLLBACK, tanpa mengubah data):
+
+| Tes | Hasil |
+|---|---|
+| Anon baca warga / pembayaran / rekap kas | ✅ Berhasil (30 warga, 267 pembayaran, kas Rp1.901.000) |
+| Anon ubah warga / hapus pengeluaran / ubah tarif | ✅ Ditolak (0 baris) |
+| Anon tambah audit log | ✅ Ditolak |
+| Admin ubah warga / ubah setting / tambah audit | ✅ Berhasil |
+| User login yang bukan admin ubah data | ✅ Ditolak |
+| Simpan pembayaran nyata dari aplikasi setelah deploy | ✅ Tersimpan (pembayaran id 1312 + audit id 876) |
+
+Catatan: nomor audit log 874–875 terlewati karena dipakai transaksi tes
+yang di-ROLLBACK — tidak ada log yang hilang atau dihapus.
+
+**Rollback darurat** (hanya jika admin sama sekali tidak bisa menyimpan data):
+```sql
+CREATE POLICY "a" ON public.warga       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "a" ON public.meteran     FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "a" ON public.pembayaran  FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "a" ON public.pengeluaran FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "a" ON public.settings    FOR ALL USING (true) WITH CHECK (true);
+```
+
+**Aplikasi** (commit di `main`, auto-deploy Vercel):
+
+| Commit | Perubahan |
+|---|---|
+| `ceb310d` | RLS migration file; `executeWrite` mendeteksi penulisan yang ditolak (0 baris) dan menampilkan error; audit log dicatat hanya setelah penulisan berhasil; Restore/Reset tidak lagi mencoba menghapus `audit_log` |
+| `1feb62f` | Tombol "Kosongkan Log" dihapus; diganti keterangan "Log audit bersifat permanen dan tidak dapat dihapus" |
+| `59af2f8` | Kelola Administrator di Pengaturan + Edge Function `create-admin` v2 |
+
+### 12.3 Kelola Administrator (Pengaturan → card "Kelola Administrator")
+
+Hanya tampil untuk admin yang sudah login (menu Pengaturan tersembunyi
+tanpa buka kunci).
+
+- **Daftar admin** — email, waktu terakhir login, tombol hapus.
+- **Tambah admin** — email + password awal (min. 8 karakter) → kode OTP
+  dikirim ke email **admin yang sedang login** → masukkan kode → akun
+  dibuat & langsung aktif.
+- **Hapus admin** — konfirmasi → OTP → akun dihapus (tidak bisa login lagi).
+  **Admin terakhir tidak bisa dihapus.**
+- **Ganti password** — untuk akun sendiri.
+- Setiap tambah/hapus admin tercatat di Audit Log (aksi `ADMIN`).
+
+Cara kerja teknis:
+1. Aplikasi memanggil `supabase.auth.signInWithOtp` ke email admin yang login.
+2. Admin memasukkan kode → `supabase.auth.verifyOtp` → sesi baru dengan
+   klaim `amr: [{ method: "otp", timestamp }]`.
+3. Edge Function `create-admin` (v2, `verify_jwt = false`, token divalidasi
+   manual) hanya mengizinkan `create_admin` / `delete_admin` jika klaim
+   `otp` tersebut berumur ≤ 10 menit. `list_admins` cukup login sebagai admin.
+4. `service_role` hanya dipakai di Edge Function (env server), tidak pernah
+   di browser.
+
+Deploy ulang Edge Function (jika kodenya diubah):
+```bash
+npx supabase functions deploy create-admin --no-verify-jwt --project-ref psfrkevdcuuyyefeuhps
+```
+
+### 12.4 Konfigurasi Supabase yang WAJIB ada
+
+Sudah diatur 15 Sept 2026. Jika fitur OTP bermasalah, cek ini dulu:
+
+| Menu Dashboard | Nilai |
+|---|---|
+| Authentication → URL Configuration → **Site URL** | `https://airkas-rt.vercel.app` (bawaan `localhost:3000` membuat link email mengarah ke localhost) |
+| Authentication → Emails → Templates → **Magic link or OTP** | Harus memuat `{{ .Token }}` dan **tidak** memuat `{{ .ConfirmationURL }}` |
+
+Template yang dipakai:
+```html
+<h2>Kode Verifikasi AirKas RT</h2>
+<p>Masukkan kode ini di aplikasi: <strong>{{ .Token }}</strong></p>
+<p>Abaikan email ini jika Anda tidak sedang menambah atau menghapus admin.</p>
+```
+
+**Batas email:** server email bawaan Supabase hanya ±2 email per jam.
+Error `email rate limit exceeded` berarti harus menunggu — jangan menekan
+tombol berulang kali. Batas ini hanya hilang dengan memasang SMTP sendiri
+(Authentication → Emails → SMTP Settings).
+
+### 12.5 Prosedur serah terima pengelola (tanpa akses Supabase)
+
+Admin lama dan admin baru sebaiknya melakukannya bersama, dengan jeda
+waktu karena batas email (butuh 2 OTP).
+
+1. **Admin lama** login → Pengaturan → Kelola Administrator → isi email
+   admin baru + password awal → Tambah Admin Baru → masukkan OTP dari
+   email admin lama.
+2. Sampaikan password awal **secara langsung** (bukan lewat grup chat).
+3. **Admin baru** login di aplikasi → Pengaturan → **Ganti Password**.
+4. **Admin baru** mengganti **PIN kunci layar** di Pengaturan (PIN
+   disimpan per perangkat).
+5. **Admin baru** (atau admin lama) menghapus akun admin lama dari
+   daftar → masukkan OTP.
+6. Pastikan daftar admin hanya berisi pengelola yang aktif, dan cek
+   Audit Log mencatat tambah/hapus admin.
+
+**Yang TIDAK ikut berpindah lewat aplikasi:** database Supabase, hosting
+Vercel, dan repo GitHub tetap atas nama akun Slamet (`mamet334`). Aplikasi
+tetap berjalan selama akun-akun tersebut aktif. Jika suatu saat perlu
+dipindahkan kepemilikannya, itu pekerjaan terpisah (transfer project
+Supabase/Vercel/GitHub).
+
+### 12.6 Backup data
+
+Supabase paket gratis tidak punya fitur kembali ke titik waktu tertentu —
+data yang terhapus tidak bisa dipulihkan.
+
+- Unduh backup **minimal sebulan sekali** (setelah rekap bulanan):
+  Pengaturan → **Unduh Backup Basis Data (.json)**.
+- Simpan di dua tempat (misal Google Drive + HP/laptop).
+- Catatan: backup dari aplikasi mengambil data yang sedang dimuat
+  (maks. 2000 baris per tabel). Jika data sudah mendekati batas itu,
+  gunakan ekspor CSV dari Supabase Dashboard (Table Editor → Export).
+
+### 12.7 Belum selesai / catatan terbuka
+
+- ⏳ **Tes akhir Kelola Administrator** — tambah admin uji (OTP) → login &
+  ganti password → hapus admin uji (OTP). Tertunda karena batas email.
+- ⚠️ **PIN bawaan `slamet2026`** tertulis di kode publik GitHub. Ganti PIN
+  di Pengaturan jika belum pernah diganti.
+- ⚠️ **Restore / Reset** di Pengaturan menghapus & mengisi data baris per
+  baris dari browser; jika koneksi putus di tengah proses, data bisa
+  tersisa sebagian. Perlu dibahas sebagai task terpisah.
+- Kolom `warga.telepon` tetap dikosongkan (lihat §3).

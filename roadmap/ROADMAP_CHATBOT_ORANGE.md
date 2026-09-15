@@ -133,6 +133,13 @@ WRITE being properly gated to authenticated admins only — this is
 exactly what `TASK_ADMIN_LOGIN.md` delivers. Do not start chatbot
 implementation before that task's Definition of Done is met.
 
+**Status prasyarat (15 Sept 2026 malam):** RLS sudah benar & terverifikasi
+di produksi (SELECT publik, WRITE hanya admin — lihat `TASK_ADMIN_LOGIN.md`
+§12.2). Sisa Definition of Done hanya tes akhir fitur Kelola Administrator,
+yang tidak memengaruhi chatbot. View `warga_public` **belum dibuat**;
+karena kolom `telepon` saat ini kosong dan kebijakannya tetap dikosongkan,
+view ini bisa dibuat saat build chatbot dimulai.
+
 ---
 
 ## PART 2: ORANGE DATA MINING INTEGRATION
