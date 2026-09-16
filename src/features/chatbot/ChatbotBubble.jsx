@@ -151,6 +151,7 @@ const ChatbotBubble = () => {
 
   const saran = [
     'Saldo kas berapa?',
+    'Siapa yang sudah bayar?',
     'Siapa yang belum bayar?',
     'Rincian belum bayar',
     'Laporan bulan ini',

@@ -52,6 +52,8 @@ export const detectIntent = (teks) => {
   if (soalTunggakan && mengandung(t, ['rincian', 'detail', 'lengkap'])) return 'rincian_belum_bayar';
   if (soalTunggakan) return 'belum_bayar';
 
+  if (mengandung(t, ['sudah bayar', 'sudah lunas', 'yang lunas', 'siapa lunas'])) return 'sudah_bayar';
+
   if (mengandung(t, ['pemakaian', 'kubik', 'm3', 'meteran'])) return 'pemakaian_air';
   if (mengandung(t, ['tarif', 'harga air', 'biaya admin'])) return 'tarif';
   if (mengandung(t, ['laporan', 'ringkasan', 'rekap'])) return 'laporan_periode';
@@ -162,6 +164,24 @@ const daftarPenunggak = (month, year, state) =>
     })
     .filter(w => w.sisa > 0)
     .sort((a, b) => b.sisa - a.sisa);
+
+const daftarLunas = (month, year, state) =>
+  state.warga
+    .filter(w => w.aktif && w.alamat !== 'SISTEM' && !w.adalah_pengelola)
+    .map(w => {
+      const { meteran, sudahBayar, ringkas } = hitungTagihanWarga(w.id, month, year, state);
+      return {
+        id: w.id,
+        nama: w.nama,
+        adaMeteran: !!meteran,
+        tagihan: ringkas.tagihan,
+        dibayar: sudahBayar,
+        deposit: ringkas.deposit,
+        sisa: Math.max(0, ringkas.sisa)
+      };
+    })
+    .filter(w => w.sisa <= 0)
+    .sort((a, b) => b.dibayar - a.dibayar);
 
 const pesanNamaTidakJelas = (candidates, contoh) => {
   if (candidates.length > 0) {
@@ -308,6 +328,27 @@ const jawabRincianBelumBayar = (teks, state, hariIni) => {
     `(${daftar.length} orang, total ${fmtRp(total)}):\n${baris.join('\n')}`;
 };
 
+const jawabSudahBayar = (teks, state, hariIni) => {
+  const { month, year } = parsePeriod(teks, hariIni);
+  const lunas = daftarLunas(month, year, state);
+  const wargaAktif = state.warga.filter(w => w.aktif && w.alamat !== 'SISTEM' && !w.adalah_pengelola).length;
+
+  if (lunas.length === 0) {
+    return `Belum ada warga yang lunas untuk periode ${getCycleLabel(month, year)}.`;
+  }
+
+  const totalDibayar = lunas.reduce((s, w) => s + w.dibayar, 0);
+  const baris = lunas.map((w, i) => {
+    let catatan = `${i + 1}. ${w.nama} — ${fmtRp(w.dibayar)}`;
+    if (w.dibayar === 0 && w.deposit > 0) catatan += ' (tertutup deposit)';
+    else if (w.dibayar === 0 && w.tagihan === 0 && !w.adaMeteran) catatan += ' (belum ada tagihan periode ini)';
+    return catatan;
+  });
+
+  return `Sudah lunas periode ${getCycleLabel(month, year)}: ${lunas.length} dari ${wargaAktif} warga\n` +
+    `${baris.join('\n')}\n\nTotal dibayar periode ini: ${fmtRp(totalDibayar)}`;
+};
+
 const jawabPengeluaran = (teks, state, hariIni) => {
   const t = normalize(teks);
 
@@ -452,6 +493,7 @@ export const BANTUAN = 'Saya bisa bantu menjawab soal keuangan air RT:\n' +
   '• "riwayat bayar Bowo"\n' +
   '• "kapan Bowo terakhir bayar"\n' +
   '• "pemakaian air Bowo"\n' +
+  '• "siapa yang sudah bayar"\n' +
   '• "siapa yang belum bayar" / "rincian belum bayar"\n' +
   '• "pengeluaran bulan Agustus"\n' +
   '• "laporan bulan ini"\n' +
@@ -476,6 +518,7 @@ export const answerQuestion = (pertanyaan, state, hariIni = new Date()) => {
     case 'cek_tagihan': return { intent, text: jawabTagihan(pertanyaan, state, hariIni) };
     case 'riwayat_bayar': return { intent, text: jawabRiwayat(pertanyaan, state) };
     case 'belum_bayar': return { intent, text: jawabBelumBayar(pertanyaan, state, hariIni) };
+    case 'sudah_bayar': return { intent, text: jawabSudahBayar(pertanyaan, state, hariIni) };
     case 'rincian_belum_bayar': return { intent, text: jawabRincianBelumBayar(pertanyaan, state, hariIni) };
     case 'total_pengeluaran': return { intent, text: jawabPengeluaran(pertanyaan, state, hariIni) };
     case 'total_pemasukan': return { intent, text: jawabPemasukan(pertanyaan, state, hariIni) };

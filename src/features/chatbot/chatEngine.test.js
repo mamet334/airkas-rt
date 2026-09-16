@@ -57,6 +57,11 @@ describe('detectIntent', () => {
     expect(detectIntent('rincian belum bayar')).toBe('rincian_belum_bayar');
   });
 
+  it('membedakan pertanyaan sudah bayar dari belum bayar', () => {
+    expect(detectIntent('siapa yang sudah bayar')).toBe('sudah_bayar');
+    expect(detectIntent('siapa saja yang sudah lunas?')).toBe('sudah_bayar');
+  });
+
   it('mengenali intent tambahan', () => {
     expect(detectIntent('pengeluaran bulan agustus')).toBe('total_pengeluaran');
     expect(detectIntent('pemakaian air bowo')).toBe('pemakaian_air');
@@ -169,6 +174,16 @@ describe('answerQuestion — tunggakan', () => {
     expect(text).toContain('Siti Aminah');
     expect(text).not.toContain('Bowo');
     expect(text).toContain('rincian belum bayar');
+  });
+
+  it('daftar sudah bayar hanya memuat yang lunas', () => {
+    const { intent, text } = answerQuestion('siapa yang sudah bayar', state, HARI_INI);
+    expect(intent).toBe('sudah_bayar');
+    expect(text).toContain('Sudah lunas periode');
+    expect(text).toContain('1 dari 2 warga');
+    expect(text).toContain('Bowo — Rp80.000');
+    expect(text).not.toContain('Siti Aminah');
+    expect(text).toContain('Total dibayar periode ini: Rp80.000');
   });
 
   it('rincian belum bayar menyebut bulan tertunggak', () => {

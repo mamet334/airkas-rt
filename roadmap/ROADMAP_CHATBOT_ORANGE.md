@@ -144,8 +144,9 @@ memakai B-1 — kalau tidak, tagihan periode berjalan terhitung dua kali.
 
 **Pertanyaan yang dijawab:** saldo kas (plus kondisi periode berjalan),
 tagihan warga (meteran, tarif, rincian bulan tertunggak, pembayaran terakhir),
-riwayat bayar, kapan terakhir bayar, pemakaian air + rata-rata, daftar belum
-bayar (ringkas) dan "rincian belum bayar" (lengkap), pengeluaran per periode
+riwayat bayar, kapan terakhir bayar, pemakaian air + rata-rata, daftar sudah
+bayar (lunas), daftar belum bayar (ringkas) dan "rincian belum bayar"
+(lengkap), pengeluaran per periode
 + daftar transaksinya, pemasukan, laporan periode, tarif, jumlah warga,
 bantuan, dan fallback bila tidak paham.
 
