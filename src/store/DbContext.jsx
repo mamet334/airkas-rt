@@ -7,10 +7,10 @@ const DbContext = createContext(null);
 
 const SUPABASE_URL = "https://psfrkevdcuuyyefeuhps.supabase.co";
 const SUPABASE_KEY = "sb_publishable_drceoz8eAEPpECcxMWx8mg_ElVgUMU2";
-const ADMIN_PIN_HASH_KEY = 'airkas_admin_pin_hash';
-const LEGACY_ADMIN_PIN_KEY = 'airkas_admin_pin';
-const DEFAULT_ADMIN_PIN = "slamet2026";
 const SCREEN_LOCKED_KEY = 'airkasrt_screen_locked';
+// Kunci lama: PIN pernah disimpan di localStorage dengan nilai bawaan hardcoded.
+// Sekarang PIN disimpan per akun di admin_users.pin_hash — sisa data lama dibersihkan.
+const LEGACY_PIN_KEYS = ['airkas_admin_pin_hash', 'airkas_admin_pin'];
 
 const encodeText = (text) => new TextEncoder().encode(text);
 const hashText = async (text) => {
@@ -18,20 +18,9 @@ const hashText = async (text) => {
   return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 };
 
-const getStoredAdminPinHash = async () => {
-  const storedHash = localStorage.getItem(ADMIN_PIN_HASH_KEY);
-  if (storedHash) return storedHash;
-
-  const legacyPin = localStorage.getItem(LEGACY_ADMIN_PIN_KEY);
-  if (legacyPin) {
-    const converted = await hashText(legacyPin);
-    localStorage.setItem(ADMIN_PIN_HASH_KEY, converted);
-    localStorage.removeItem(LEGACY_ADMIN_PIN_KEY);
-    return converted;
-  }
-
-  return hashText(DEFAULT_ADMIN_PIN);
-};
+// PIN di-hash bersama user_id sebagai garam, agar hash-nya berbeda tiap akun
+// dan tidak bisa ditebak dengan tabel hash umum.
+const hashPin = (pin, userId) => hashText(`${userId}:${pin}`);
 
 export const useDb = () => {
   const context = useContext(DbContext);
@@ -72,8 +61,44 @@ export const DbProvider = ({ children }) => {
     () => sessionStorage.getItem(SCREEN_LOCKED_KEY) === 'true'
   );
 
+  // Hash PIN milik admin yang sedang login (null = PIN belum diatur)
+  const [pinHash, setPinHash] = useState(null);
+  const hasPin = !!pinHash;
+
   // isAdminUnlocked = true hanya jika: sudah login DAN layar tidak terkunci
   const isAdminUnlocked = !!authUser && !isScreenLocked;
+
+  // ─── Ambil PIN akun dari database ─────────────────────────────────────────
+  useEffect(() => {
+    LEGACY_PIN_KEYS.forEach(key => localStorage.removeItem(key));
+
+    let active = true;
+
+    const loadPin = async () => {
+      if (!authUser) {
+        if (active) setPinHash(null);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('admin_users')
+        .select('pin_hash')
+        .eq('user_id', authUser.id)
+        .maybeSingle();
+
+      if (!active) return;
+      setPinHash(data?.pin_hash || null);
+      // Tanpa PIN, layar tidak boleh terkunci — agar admin tidak terjebak
+      if (!data?.pin_hash) {
+        setIsScreenLocked(false);
+        sessionStorage.removeItem(SCREEN_LOCKED_KEY);
+      }
+    };
+
+    loadPin();
+
+    return () => { active = false; };
+  }, [supabase, authUser]);
 
   // ─── Supabase Auth Listener ───────────────────────────────────────────────
   useEffect(() => {
@@ -206,9 +231,13 @@ export const DbProvider = ({ children }) => {
     });
   }, [supabase, showAlert, showToast]);
 
-  /** Kunci layar dengan PIN — hanya berlaku jika sudah login */
+  /** Kunci layar dengan PIN — hanya berlaku jika sudah login dan PIN sudah diatur */
   const lockScreen = useCallback(() => {
     if (!authUser) return;
+    if (!hasPin) {
+      showToast('Atur PIN dulu di Pengaturan sebelum memakai kunci layar.', 'warning');
+      return;
+    }
     showAlert({
       title: 'Kunci Layar',
       message: 'Layar akan dikunci. Masukkan PIN untuk membuka kembali tanpa harus login ulang.',
@@ -219,13 +248,16 @@ export const DbProvider = ({ children }) => {
         showToast('Layar terkunci. Masukkan PIN untuk melanjutkan.', 'info');
       }
     });
-  }, [authUser, showAlert, showToast]);
+  }, [authUser, hasPin, showAlert, showToast]);
 
   /** Buka layar dengan PIN (quick-lock) — hanya jika sudah login tapi layar terkunci */
   const unlockScreen = useCallback(async (pin) => {
-    const activeHash = await getStoredAdminPinHash();
-    const inputHash = await hashText(pin);
-    if (inputHash === activeHash) {
+    if (!authUser || !pinHash) {
+      showToast('PIN belum diatur. Silakan login ulang.', 'error');
+      return false;
+    }
+    const inputHash = await hashPin(pin, authUser.id);
+    if (inputHash === pinHash) {
       setIsScreenLocked(false);
       sessionStorage.removeItem(SCREEN_LOCKED_KEY);
       showToast('Layar berhasil dibuka!', 'success');
@@ -233,18 +265,33 @@ export const DbProvider = ({ children }) => {
     }
     showToast('PIN salah! Akses ditolak.', 'error');
     return false;
-  }, [showToast]);
+  }, [authUser, pinHash, showToast]);
 
-  /** Ubah PIN quick-lock */
+  /** Atur / ubah PIN quick-lock — disimpan di admin_users.pin_hash (per akun) */
   const updateAdminPin = useCallback(async (oldPin, newPin) => {
-    const currentHash = await getStoredAdminPinHash();
-    const oldHash = await hashText(oldPin);
-    if (oldHash !== currentHash) return false;
-    const newHash = await hashText(newPin);
-    localStorage.setItem(ADMIN_PIN_HASH_KEY, newHash);
-    localStorage.removeItem(LEGACY_ADMIN_PIN_KEY);
+    if (!authUser) return false;
+
+    // PIN lama hanya diperiksa jika akun ini sudah punya PIN
+    if (pinHash) {
+      const oldHash = await hashPin(oldPin, authUser.id);
+      if (oldHash !== pinHash) return false;
+    }
+
+    const newHash = await hashPin(newPin, authUser.id);
+    const { data, error } = await supabase
+      .from('admin_users')
+      .update({ pin_hash: newHash })
+      .eq('user_id', authUser.id)
+      .select('user_id');
+
+    if (error || !data || data.length === 0) {
+      showToast('Gagal menyimpan PIN ke server. Coba login ulang.', 'error');
+      return false;
+    }
+
+    setPinHash(newHash);
     return true;
-  }, []);
+  }, [supabase, authUser, pinHash, showToast]);
 
   // ─── Write Operations ──────────────────────────────────────────────────────
   const executeWrite = useCallback(async ({ table, action, data, id, logMsg }) => {
@@ -402,6 +449,7 @@ export const DbProvider = ({ children }) => {
       authUser,
       isAdminUnlocked,
       isScreenLocked,
+      hasPin,
       signIn,
       signOut,
       lockScreen,

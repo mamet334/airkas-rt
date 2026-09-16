@@ -6,7 +6,7 @@ import { fmtRp, fmtDateTime } from '../utils/format';
 import { Save, Lock, Download, Upload, RotateCcw, Bell, BellOff, Key, Database, UserPlus, Shield, CheckCircle2, Trash2 } from 'lucide-react';
 
 const Pengaturan = () => {
-  const { supabase, state, isAdminUnlocked, authUser, executeWrite, updateAdminPin, refreshData } = useDb();
+  const { supabase, state, isAdminUnlocked, authUser, executeWrite, updateAdminPin, hasPin, refreshData } = useDb();
   const { showToast, showAlert, requestNotificationPermission, showBrowserNotification, subscribeToPushNotifications, unsubscribePushNotifications, pushSubscription, pushSupported } = useNotification();
 
   // General Profile State
@@ -111,11 +111,11 @@ const Pengaturan = () => {
 
     const success = await updateAdminPin(pinForm.oldPin, pinForm.newPin);
     if (!success) {
-      showToast('PIN keamanan lama tidak cocok.', 'error');
+      if (hasPin) showToast('PIN keamanan lama tidak cocok.', 'error');
       return;
     }
 
-    showToast('PIN Keamanan Admin berhasil diubah!', 'success');
+    showToast(hasPin ? 'PIN Keamanan Admin berhasil diubah!' : 'PIN Keamanan Admin berhasil diatur!', 'success');
     setPinForm({ oldPin: '', newPin: '', confirmNewPin: '' });
   };
 
@@ -516,19 +516,26 @@ const Pengaturan = () => {
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200/50 dark:border-slate-700/50 space-y-4">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
             <Key size={16} />
-            Ubah PIN Keamanan Admin
+            {hasPin ? 'Ubah PIN Keamanan Admin' : 'Atur PIN Keamanan Admin'}
           </h3>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+            PIN dipakai untuk kunci layar cepat saat sesi admin aktif, dan tersimpan
+            di akun Anda (berlaku di semua perangkat).
+            {!hasPin && ' Selama PIN belum diatur, fitur kunci layar tidak aktif.'}
+          </p>
           <form onSubmit={handleSavePin} className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">PIN Lama</label>
-              <input
-                type="password"
-                required
-                value={pinForm.oldPin}
-                onChange={(e) => setPinForm({ ...pinForm, oldPin: e.target.value })}
-                className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-805"
-              />
-            </div>
+            {hasPin && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">PIN Lama</label>
+                <input
+                  type="password"
+                  required
+                  value={pinForm.oldPin}
+                  onChange={(e) => setPinForm({ ...pinForm, oldPin: e.target.value })}
+                  className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-805"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">PIN Baru (Minimal 4 Angka/Karakter)</label>
               <input
@@ -553,7 +560,7 @@ const Pengaturan = () => {
               type="submit"
               className="px-4 py-2 w-full rounded-xl text-xs font-bold text-white bg-slate-700 hover:bg-slate-600 active:scale-95 transition-all"
             >
-              Ubah PIN Sekarang
+              {hasPin ? 'Ubah PIN Sekarang' : 'Atur PIN Sekarang'}
             </button>
           </form>
         </div>

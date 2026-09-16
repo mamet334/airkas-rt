@@ -533,8 +533,8 @@ waktu karena batas email (butuh 2 OTP).
    email admin lama.
 2. Sampaikan password awal **secara langsung** (bukan lewat grup chat).
 3. **Admin baru** login di aplikasi → Pengaturan → **Ganti Password**.
-4. **Admin baru** mengganti **PIN kunci layar** di Pengaturan (PIN
-   disimpan per perangkat).
+4. **Admin baru** mengatur **PIN kunci layar** sendiri di Pengaturan
+   (PIN tersimpan di akunnya, berlaku di semua perangkat — §12.8).
 5. **Admin baru** (atau admin lama) menghapus akun admin lama dari
    daftar → masukkan OTP.
 6. Pastikan daftar admin hanya berisi pengelola yang aktif, dan cek
@@ -564,9 +564,43 @@ data yang terhapus tidak bisa dipulihkan.
   16 Sept 2026: tambah admin (12:06), login admin kedua + ganti password
   (12:07), hapus admin (12:12). Audit Log id 877 & 878. Admin tersisa:
   `slametbro798@gmail.com` saja.
-- ⚠️ **PIN bawaan `slamet2026`** tertulis di kode publik GitHub. Ganti PIN
-  di Pengaturan jika belum pernah diganti.
+- ✅ **PIN bawaan `slamet2026` sudah dihapus dari kode** (16 Sept 2026).
+  PIN sekarang disimpan per akun di database — lihat §12.8.
 - ⚠️ **Restore / Reset** di Pengaturan menghapus & mengisi data baris per
   baris dari browser; jika koneksi putus di tengah proses, data bisa
   tersisa sebagian. Perlu dibahas sebagai task terpisah.
 - Kolom `warga.telepon` tetap dikosongkan (lihat §3).
+
+### 12.8 PIN kunci layar: per akun, bukan per perangkat (16 Sept 2026)
+
+**Masalah sebelumnya:** PIN di-hash di browser dan disimpan di
+`localStorage`, dengan nilai bawaan `DEFAULT_ADMIN_PIN = "slamet2026"`
+hardcoded di `src/store/DbContext.jsx` — terbaca siapa pun di repo publik,
+dan PIN hanya berlaku di satu perangkat (perangkat lain tetap memakai PIN
+bawaan).
+
+**Sekarang:**
+- Migrasi `supabase/migrations/20260916_admin_pin_hash.sql` (diterapkan ke
+  produksi sebagai `admin_pin_hash`): kolom `admin_users.pin_hash` +
+  policy `admin_users_update_self` (UPDATE hanya untuk baris sendiri).
+- PIN di-hash **bersama `user_id` sebagai garam** (SHA-256 dari
+  `"<user_id>:<pin>"`), jadi hash-nya berbeda tiap akun.
+- Nilai bawaan di kode **dihapus**. Jika `pin_hash` masih NULL, fitur kunci
+  layar **tidak aktif** dan tombol kunci menampilkan pesan "Atur PIN dulu
+  di Pengaturan".
+- Sisa PIN lama di `localStorage` dibersihkan otomatis saat aplikasi dibuka.
+- Pengaturan → card PIN menyesuaikan: judul "Atur PIN" (belum ada PIN) atau
+  "Ubah PIN" (sudah ada), dan kolom "PIN Lama" hanya tampil jika sudah ada PIN.
+
+**Hasil verifikasi** (transaksi di-ROLLBACK):
+
+| Tes | Hasil |
+|---|---|
+| Admin simpan PIN di barisnya sendiri | ✅ Berhasil (1 baris) |
+| Admin ubah `pin_hash` baris admin lain | ✅ Ditolak (0 baris) |
+| Anon baca / ubah `admin_users` | ✅ Ditolak (0 baris) |
+| Lint, 15/15 unit test, build | ✅ Lolos |
+
+**Yang perlu dilakukan tiap admin setelah fitur ini live:** buka
+Pengaturan → **Atur PIN Keamanan Admin**. Sebelum diatur, kunci layar
+tidak bisa dipakai (login email+password tetap berfungsi normal).
