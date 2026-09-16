@@ -154,8 +154,12 @@ bantuan, dan fallback bila tidak paham.
 detail penuh; daftar belum bayar ringkas dulu, rincian per orang hanya jika
 diminta — agar tidak kepanjangan di layar HP.
 
-**Verifikasi di data produksi:** saldo Rp2.205.000 dan 19 penunggak senilai
-Rp1.763.000 — cocok dengan tampilan aplikasi dan pemeriksaan SQL langsung.
+**Verifikasi di data produksi:** saldo Rp2.205.000, 19 penunggak senilai
+Rp1.763.000, dan 9 dari 28 warga lunas senilai Rp718.000 — semuanya cocok
+dengan tampilan aplikasi dan pemeriksaan SQL langsung.
+
+**Uji pemakaian nyata:** 16 September 2026 — dicoba langsung di HP oleh
+Slamet setelah deploy; seluruh pertanyaan berfungsi sesuai harapan.
 
 **Belum dikerjakan:** Phase 2 (LLM) tidak diperlukan sejauh ini; view
 `warga_public` belum dibuat (kolom `telepon` tetap dikosongkan).
