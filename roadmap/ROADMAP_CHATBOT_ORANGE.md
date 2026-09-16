@@ -2,7 +2,8 @@
 
 Date: September 15, 2026
 Author: Slamet (via Claude, discussion/design brief)
-Status: PLANNING — NOT STARTED
+Status: PART 1 (CHATBOT) SUDAH DIBANGUN & LIVE — 16 September 2026 (lihat §1.9).
+        PART 2 (Orange Data Mining) masih PLANNING — belum dimulai.
 Last updated: September 15, 2026 — UI, language, and name-matching decisions confirmed by Slamet.
 Dependency: Requires `TASK_ADMIN_LOGIN.md` (RLS + Auth fix) to ship first.
 This document is a design brief, not a build task — no AI coding agent
@@ -124,6 +125,39 @@ exposed client-side.
   sebelum dicocokkan.
 
 
+
+### 1.9 STATUS IMPLEMENTASI (16 September 2026)
+
+Phase 1 (kamus kata kunci, tanpa LLM) **sudah dibangun dan dipakai**.
+
+**Berkas:**
+- `src/features/chatbot/chatEngine.js` — deteksi maksud, pembacaan periode,
+  pencocokan nama, dan penyusunan jawaban.
+- `src/features/chatbot/ChatbotBubble.jsx` — bubble melayang + panel chat.
+- `src/features/chatbot/chatEngine.test.js` — 30 unit test.
+- Dipasang di `src/App.jsx` (tampil di semua halaman, kelas `no-print`).
+
+**Sumber angka:** data yang sudah dimuat aplikasi (read-only), dihitung ulang
+memakai `cycleEngine` + `billingEngine`. **Acuan tagihan per warga mengikuti
+halaman Terima Bayar** (meteran periode B = bulan B), bukan Dashboard yang
+memakai B-1 — kalau tidak, tagihan periode berjalan terhitung dua kali.
+
+**Pertanyaan yang dijawab:** saldo kas (plus kondisi periode berjalan),
+tagihan warga (meteran, tarif, rincian bulan tertunggak, pembayaran terakhir),
+riwayat bayar, kapan terakhir bayar, pemakaian air + rata-rata, daftar belum
+bayar (ringkas) dan "rincian belum bayar" (lengkap), pengeluaran per periode
++ daftar transaksinya, pemasukan, laporan periode, tarif, jumlah warga,
+bantuan, dan fallback bila tidak paham.
+
+**Keputusan tampilan (16 Sept 2026):** tagihan & pengeluaran ditampilkan
+detail penuh; daftar belum bayar ringkas dulu, rincian per orang hanya jika
+diminta — agar tidak kepanjangan di layar HP.
+
+**Verifikasi di data produksi:** saldo Rp2.205.000 dan 19 penunggak senilai
+Rp1.763.000 — cocok dengan tampilan aplikasi dan pemeriksaan SQL langsung.
+
+**Belum dikerjakan:** Phase 2 (LLM) tidak diperlukan sejauh ini; view
+`warga_public` belum dibuat (kolom `telepon` tetap dikosongkan).
 
 ### 1.8 Prerequisite from TASK_ADMIN_LOGIN.md
 

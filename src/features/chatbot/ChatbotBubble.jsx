@@ -25,7 +25,7 @@ const posisiTersimpan = () => {
 };
 
 const ChatbotBubble = () => {
-  const { state } = useDb();
+  const { state, isLoading } = useDb();
 
   const [pos, setPos] = useState(posisiTersimpan);
   const [terbuka, setTerbuka] = useState(false);
@@ -104,6 +104,17 @@ const ChatbotBubble = () => {
     const pertanyaan = (teks ?? input).trim();
     if (!pertanyaan) return;
 
+    // Data belum siap -> jangan jawab "tidak kenal", jelaskan apa adanya
+    if (isLoading || !state.warga || state.warga.length === 0) {
+      setPesan(sebelumnya => [
+        ...sebelumnya,
+        { dari: 'warga', teks: pertanyaan },
+        { dari: 'bot', teks: 'Data masih dimuat dari server. Tunggu sebentar, lalu tanyakan lagi ya.' }
+      ]);
+      setInput('');
+      return;
+    }
+
     const { text } = answerQuestion(pertanyaan, state);
     setPesan(sebelumnya => [
       ...sebelumnya,
@@ -138,7 +149,14 @@ const ChatbotBubble = () => {
     }
     : { ...ukuranPanel, right: 16, bottom: 96 + UKURAN_BUBBLE + 12 };
 
-  const saran = ['Saldo kas berapa?', 'Siapa yang belum bayar?', 'Pengeluaran bulan ini'];
+  const saran = [
+    'Saldo kas berapa?',
+    'Siapa yang belum bayar?',
+    'Rincian belum bayar',
+    'Laporan bulan ini',
+    'Pengeluaran bulan ini',
+    'Tarif berapa?'
+  ];
 
   return (
     <div className="no-print">
