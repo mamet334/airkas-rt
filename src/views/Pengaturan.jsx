@@ -3,7 +3,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp, fmtDateTime } from '../utils/format';
-import { Save, Lock, Download, Upload, RotateCcw, Bell, BellOff, Key, Database, UserPlus, Shield, CheckCircle2, Trash2 } from 'lucide-react';
+import { Save, Lock, Download, Upload, Bell, BellOff, Key, Database, UserPlus, Shield, CheckCircle2, Trash2 } from 'lucide-react';
+
+const LAST_BACKUP_KEY = 'airkas_last_backup';
 
 const Pengaturan = () => {
   const { supabase, state, isAdminUnlocked, authUser, executeWrite, updateAdminPin, hasPin, refreshData } = useDb();
@@ -38,6 +40,13 @@ const Pengaturan = () => {
   const [adminBusy, setAdminBusy] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const [passwordBusy, setPasswordBusy] = useState(false);
+
+  // Backup & Restore State
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [lastBackupAt, setLastBackupAt] = useState(() => {
+    try { return localStorage.getItem(LAST_BACKUP_KEY); } catch { return null; }
+  });
 
   // Load current settings from state
   useEffect(() => {
@@ -297,127 +306,114 @@ const Pengaturan = () => {
     }
   };
 
-  // BACKUP DATABASE AS JSON
-  const handleBackup = () => {
-    const backupContent = {
-      warga: state.warga,
-      meteran: state.meteran,
-      pembayaran: state.pembayaran,
-      pengeluaran: state.pengeluaran,
-      settings: state.settings,
-      audit: state.audit
-    };
+  // BACKUP DATABASE AS JSON — diambil langsung dari server (bukan dari data yang
+  // sedang dimuat di layar, yang dibatasi 2000 baris per tabel), agar selalu utuh.
+  const handleBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const tabel = ['warga', 'meteran', 'pembayaran', 'pengeluaran', 'audit_log'];
+      const hasil = await Promise.all([
+        ...tabel.map(t => supabase.from(t).select('*').order('id').range(0, 49999)),
+        supabase.from('settings').select('*').eq('id', 1).maybeSingle()
+      ]);
 
-    const jsonStr = JSON.stringify(backupContent, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `AirKas_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('File JSON cadangan offline berhasil diunduh.', 'success');
+      const gagal = hasil.find(r => r.error);
+      if (gagal) throw gagal.error;
+
+      const dibuatPada = new Date().toISOString();
+      const backupContent = {
+        versi: 2,
+        dibuat_pada: dibuatPada,
+        warga: hasil[0].data || [],
+        meteran: hasil[1].data || [],
+        pembayaran: hasil[2].data || [],
+        pengeluaran: hasil[3].data || [],
+        audit: hasil[4].data || [],
+        settings: hasil[5].data || null
+      };
+
+      const blob = new Blob([JSON.stringify(backupContent, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AirKas_Backup_${dibuatPada.split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      try { localStorage.setItem(LAST_BACKUP_KEY, dibuatPada); } catch { /* storage penuh/diblokir */ }
+      setLastBackupAt(dibuatPada);
+
+      showToast(
+        `Backup terunduh: ${backupContent.warga.length} warga, ${backupContent.meteran.length} meteran, ` +
+        `${backupContent.pembayaran.length} pembayaran, ${backupContent.pengeluaran.length} pengeluaran.`,
+        'success'
+      );
+    } catch (err) {
+      showToast('Gagal membuat backup: ' + (err.message || 'periksa koneksi internet.'), 'error');
+    } finally {
+      setBackupBusy(false);
+    }
   };
 
-  // RESTORE DATABASE FROM JSON
+  // RESTORE DATABASE FROM JSON — dijalankan oleh fungsi database restore_backup(),
+  // seluruhnya dalam satu transaksi: jika gagal di tengah, data lama tetap utuh
+  // dan ID asli dipertahankan agar relasi antar tabel tidak putus.
   const handleRestore = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = async (event) => {
+      let parsed;
       try {
-        const parsed = JSON.parse(event.target.result);
-        if (!parsed.warga || !parsed.meteran || !parsed.pembayaran || !parsed.pengeluaran || !parsed.settings) {
-          throw new Error('Struktur format file JSON backup tidak cocok!');
-        }
-
-        showAlert({
-          title: 'Pulihkan Basis Data?',
-          message: 'Tindakan ini akan MENGHAPUS seluruh data cloud saat ini dan menimpanya dengan isi berkas backup JSON ini. Lanjutkan?',
-          type: 'danger',
-          onConfirm: async () => {
-            // Drop current data
-            for (const table of ['pembayaran', 'meteran', 'warga', 'pengeluaran']) { // audit_log append-only, tidak dihapus
-              const items = state[table] || [];
-              for (const item of items) {
-                await executeWrite({ table, action: 'delete', id: item.id, logMsg: 'Restore cleanup' });
-              }
-            }
-
-            // Restore Settings
-            await executeWrite({
-              table: 'settings',
-              action: 'update',
-              id: 1,
-              data: parsed.settings,
-              logMsg: 'Memulihkan setelan RT dari backup JSON'
-            });
-
-            // Restore Warga
-            for (const w of parsed.warga) {
-              await executeWrite({ table: 'warga', action: 'insert', data: w, logMsg: 'Restore warga' });
-            }
-            // Restore Meteran
-            for (const m of parsed.meteran) {
-              await executeWrite({ table: 'meteran', action: 'insert', data: m, logMsg: 'Restore meteran' });
-            }
-            // Restore Pembayaran
-            for (const p of parsed.pembayaran) {
-              await executeWrite({ table: 'pembayaran', action: 'insert', data: p, logMsg: 'Restore pembayaran' });
-            }
-            // Restore Pengeluaran
-            for (const k of parsed.pengeluaran) {
-              await executeWrite({ table: 'pengeluaran', action: 'insert', data: k, logMsg: 'Restore pengeluaran' });
-            }
-
-            showToast('Seluruh basis data berhasil dipulihkan dari cadangan JSON!', 'success');
-            window.location.reload();
-          }
-        });
-      } catch (err) {
-        showToast('Gagal memulihkan file: ' + err.message, 'error');
+        parsed = JSON.parse(event.target.result);
+      } catch {
+        showToast('Berkas tidak dapat dibaca: bukan JSON yang valid.', 'error');
+        return;
       }
+
+      const wajib = ['warga', 'meteran', 'pembayaran', 'pengeluaran'];
+      if (!wajib.every(k => Array.isArray(parsed[k]))) {
+        showToast('Struktur berkas backup tidak cocok.', 'error');
+        return;
+      }
+
+      showAlert({
+        title: 'Pulihkan Basis Data?',
+        message: `Seluruh data saat ini akan DIGANTI dengan isi backup (${parsed.warga.length} warga, ${parsed.meteran.length} meteran, ${parsed.pembayaran.length} pembayaran, ${parsed.pengeluaran.length} pengeluaran). Proses berjalan sekali jalan di server — jika gagal, data lama tetap utuh. Lanjutkan?`,
+        type: 'danger',
+        onConfirm: async () => {
+          setRestoreBusy(true);
+          try {
+            const { data, error } = await supabase.rpc('restore_backup', {
+              payload: {
+                warga: parsed.warga,
+                meteran: parsed.meteran,
+                pembayaran: parsed.pembayaran,
+                pengeluaran: parsed.pengeluaran,
+                settings: parsed.settings || null
+              }
+            });
+            if (error) throw error;
+
+            showToast(
+              `Pemulihan selesai: ${data.warga} warga, ${data.meteran} meteran, ` +
+              `${data.pembayaran} pembayaran, ${data.pengeluaran} pengeluaran.`,
+              'success'
+            );
+            await refreshData(true);
+          } catch (err) {
+            showToast('Gagal memulihkan data: ' + (err.message || 'periksa koneksi internet.'), 'error');
+          } finally {
+            setRestoreBusy(false);
+          }
+        }
+      });
     };
     reader.readAsText(file);
     e.target.value = ''; // Reset input element
   };
 
-
-  const handleResetData = () => {
-    showAlert({
-      title: 'Reset Total Database?',
-      message: 'PERINGATAN! Tindakan ini akan menghapus permanen seluruh data warga, transaksi pembayaran, meteran bulanan, kas pengeluaran, dan audit log di Supabase Cloud. Anda wajib mencadangkannya dulu!',
-      type: 'danger',
-      onConfirm: async () => {
-        // Drop all records sequentially to avoid FK violation issues
-        for (const table of ['pembayaran', 'meteran', 'warga', 'pengeluaran']) { // audit_log append-only, tidak dihapus
-          const items = state[table] || [];
-          for (const item of items) {
-            await executeWrite({ table, action: 'delete', id: item.id, logMsg: 'Reset database wipe' });
-          }
-        }
-
-        // Re-upsert default settings
-        await executeWrite({
-          table: 'settings',
-          action: 'update',
-          id: 1,
-          data: {
-            nama_rt: 'RT 01 / RW 05',
-            tarif_per_m3: 8000,
-            biaya_admin: 0,
-            alamat: 'Jl. Merdeka No. 10',
-            pengelola: 'Ketua RT'
-          },
-          logMsg: 'Menginisialisasi profil RT bawaan pasca reset'
-        });
-
-        showToast('Basis data Cloud & Cache lokal berhasil di-reset total!', 'success');
-        window.location.reload();
-      }
-    });
-  };
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -576,21 +572,28 @@ const Pengaturan = () => {
             {/* Backup */}
             <button
               onClick={handleBackup}
-              className="px-4 py-2.5 w-full rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1.5"
+              disabled={backupBusy}
+              className="px-4 py-2.5 w-full rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60"
             >
               <Download size={14} />
-              Unduh Backup Basis Data (.json)
+              {backupBusy ? 'Menyiapkan backup...' : 'Unduh Backup Basis Data (.json)'}
             </button>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
+              {lastBackupAt
+                ? `Backup terakhir dari perangkat ini: ${fmtDateTime(lastBackupAt)}`
+                : 'Belum pernah backup dari perangkat ini. Disarankan minimal sebulan sekali.'}
+            </p>
 
             {/* Restore */}
             {isAdminUnlocked ? (
               <label className="px-4 py-2.5 w-full rounded-xl text-xs font-bold text-slate-750 dark:text-slate-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
                 <Upload size={14} />
-                Pulihkan dari File Backup (.json)
+                {restoreBusy ? 'Memulihkan data...' : 'Pulihkan dari File Backup (.json)'}
                 <input
                   type="file"
                   accept=".json"
                   onChange={handleRestore}
+                  disabled={restoreBusy}
                   className="hidden"
                 />
               </label>
@@ -650,21 +653,6 @@ const Pengaturan = () => {
             </div>
 
 
-            {/* Reset Database */}
-            {isAdminUnlocked ? (
-              <button
-                onClick={handleResetData}
-                className="px-4 py-2.5 w-full rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
-              >
-                <RotateCcw size={14} />
-                Reset Total Basis Data Cloud
-              </button>
-            ) : (
-              <div className="px-4 py-2.5 w-full rounded-xl text-xs font-semibold text-slate-400 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-1.5 cursor-not-allowed">
-                <Lock size={14} />
-                Buka Kunci Admin untuk mereset database
-              </div>
-            )}
           </div>
         </div>
       </div>

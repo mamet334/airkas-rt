@@ -554,9 +554,11 @@ data yang terhapus tidak bisa dipulihkan.
 - Unduh backup **minimal sebulan sekali** (setelah rekap bulanan):
   Pengaturan → **Unduh Backup Basis Data (.json)**.
 - Simpan di dua tempat (misal Google Drive + HP/laptop).
-- Catatan: backup dari aplikasi mengambil data yang sedang dimuat
-  (maks. 2000 baris per tabel). Jika data sudah mendekati batas itu,
-  gunakan ekspor CSV dari Supabase Dashboard (Table Editor → Export).
+- Sejak 16 Sept 2026 backup diambil **langsung dari server** (bukan dari data
+  yang sedang tampil), termasuk **seluruh audit log**, jadi selalu utuh
+  berapa pun jumlah barisnya. Di bawah tombol backup tertulis kapan
+  backup terakhir dibuat dari perangkat itu.
+- Pemulihan: lihat §12.9.
 
 ### 12.7 Belum selesai / catatan terbuka
 
@@ -566,9 +568,8 @@ data yang terhapus tidak bisa dipulihkan.
   `slametbro798@gmail.com` saja.
 - ✅ **PIN bawaan `slamet2026` sudah dihapus dari kode** (16 Sept 2026).
   PIN sekarang disimpan per akun di database — lihat §12.8.
-- ⚠️ **Restore / Reset** di Pengaturan menghapus & mengisi data baris per
-  baris dari browser; jika koneksi putus di tengah proses, data bisa
-  tersisa sebagian. Perlu dibahas sebagai task terpisah.
+- ✅ **Restore sudah diperbaiki dan tombol Reset Total dihapus**
+  (16 Sept 2026) — lihat §12.9.
 - Kolom `warga.telepon` tetap dikosongkan (lihat §3).
 
 ### 12.8 PIN kunci layar: per akun, bukan per perangkat (16 Sept 2026)
@@ -604,3 +605,45 @@ bawaan).
 **Yang perlu dilakukan tiap admin setelah fitur ini live:** buka
 Pengaturan → **Atur PIN Keamanan Admin**. Sebelum diatur, kunci layar
 tidak bisa dipakai (login email+password tetap berfungsi normal).
+
+### 12.9 Backup & Restore (16 September 2026)
+
+**Masalah pada versi lama:**
+- Restore menghapus lalu memasukkan data **baris per baris dari browser**
+  (±673 permintaan, tiap penghapusan disertai catatan audit dan pemuatan
+  ulang data). Jika koneksi putus di tengah, data lama sudah terhapus dan
+  data baru hanya sebagian masuk — tanpa cara membatalkan.
+- ID lama dibuang saat insert, padahal `pembayaran.meteran_id` menunjuk ID
+  meteran. Dengan foreign key `pembayaran_meteran_id_fkey`, restore akan
+  **gagal di tengah** dan meninggalkan database kosong.
+- **Reset Total** menghapus seluruh data dengan cara yang sama.
+- Backup mengambil data dari layar (maks. 2000 baris/tabel, audit hanya 100).
+
+**Perbaikan:**
+- Migrasi `supabase/migrations/20260916b_restore_backup_fn.sql` (diterapkan
+  sebagai `restore_backup_function`): fungsi `public.restore_backup(jsonb)`
+  — `SECURITY DEFINER`, hanya untuk `is_admin()`, hak `EXECUTE` dicabut dari
+  anon. Seluruh proses (hapus → isi ulang → setel ulang penomoran ID →
+  catat audit) berjalan **dalam satu transaksi**: jika ada satu kesalahan,
+  semuanya dibatalkan dan data lama tetap utuh. **ID asli dipertahankan**
+  sehingga relasi antar tabel tidak putus. `audit_log` tidak ikut dihapus.
+- Aplikasi memanggil fungsi itu lewat satu `rpc`, lalu menampilkan jumlah
+  baris yang dipulihkan. Konfirmasi sebelum jalan menyebutkan isi backup.
+- **Tombol "Reset Total Basis Data Cloud" dihapus** dari Pengaturan. Jika
+  suatu saat benar-benar perlu mengosongkan data, lakukan lewat Supabase
+  SQL Editor dengan sengaja, bukan lewat tombol di aplikasi.
+- Backup kini mengambil data langsung dari server + seluruh audit log, dan
+  mencatat waktu backup terakhir (`localStorage`, ditampilkan di Pengaturan).
+
+**Hasil verifikasi** (transaksi di-ROLLBACK, memakai data asli):
+
+| Tes | Hasil |
+|---|---|
+| Restore oleh admin | ✅ 30 warga, 287 meteran, 268 pembayaran, 88 pengeluaran — sama persis |
+| Relasi `pembayaran.meteran_id` setelah restore | ✅ 0 yang putus |
+| Saldo kas setelah restore | ✅ Tetap Rp2.101.000 |
+| Anon memanggil `restore_backup` | ✅ Ditolak (permission denied) |
+| User login non-admin | ✅ Ditolak ("hanya administrator") |
+| Lint, 15/15 unit test, build | ✅ Lolos |
+
+**Rollback fungsi:** `DROP FUNCTION public.restore_backup(jsonb);`
