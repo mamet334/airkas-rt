@@ -4,9 +4,10 @@ import { answerQuestion, BANTUAN } from './chatEngine';
 import { MessageCircle, X, Send } from 'lucide-react';
 
 const POS_KEY = 'airkas_chat_pos';
-const UKURAN_BUBBLE = 56;
-const LEBAR_PANEL = 320;
-const TINGGI_PANEL = 420;
+// Ukuran dibuat lapang dan tulisan cukup besar agar mudah dibaca warga lanjut usia
+const UKURAN_BUBBLE = 64;
+const LEBAR_PANEL = 400;
+const TINGGI_PANEL = 600;
 const GESER_DIANGGAP_DRAG = 6; // piksel
 
 const batasi = (nilai, min, max) => Math.min(Math.max(nilai, min), max);
@@ -132,7 +133,7 @@ const ChatbotBubble = () => {
   // Ukuran panel selalu menyesuaikan layar HP
   const ukuranPanel = {
     width: `min(${LEBAR_PANEL}px, calc(100vw - 16px))`,
-    height: `min(${TINGGI_PANEL}px, calc(100vh - 32px))`
+    height: `min(${TINGGI_PANEL}px, calc(100vh - 24px))`
   };
 
   // Belum pernah digeser -> tetap di pojok kanan bawah (di atas menu bawah HP).
@@ -167,18 +168,18 @@ const ChatbotBubble = () => {
           className="fixed z-50 flex flex-col rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between gap-2 px-4 py-3 bg-teal-600 text-white shrink-0">
+          <div className="flex items-center justify-between gap-2 px-4 py-3.5 bg-teal-600 text-white shrink-0">
             <div className="min-w-0">
-              <p className="text-sm font-bold leading-tight">Tanya Kas Air RT</p>
-              <p className="text-[11px] opacity-90 leading-tight">Info keuangan, hanya bacaan</p>
+              <p className="text-base font-bold leading-tight">Tanya Kas Air RT</p>
+              <p className="text-xs opacity-90 leading-tight">Info keuangan, hanya bacaan</p>
             </div>
             <button
               type="button"
               onClick={() => setTerbuka(false)}
               aria-label="Tutup obrolan"
-              className="p-1.5 rounded-lg hover:bg-white/20 transition-colors shrink-0"
+              className="p-2 rounded-lg hover:bg-white/20 transition-colors shrink-0"
             >
-              <X size={16} />
+              <X size={20} />
             </button>
           </div>
 
@@ -187,7 +188,7 @@ const ChatbotBubble = () => {
             {pesan.map((p, i) => (
               <div key={i} className={`flex ${p.dari === 'warga' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs whitespace-pre-line leading-relaxed ${
+                  className={`max-w-[88%] px-3.5 py-2.5 rounded-2xl text-[15px] whitespace-pre-line leading-relaxed ${
                     p.dari === 'warga'
                       ? 'bg-teal-600 text-white rounded-br-sm'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
@@ -207,7 +208,7 @@ const ChatbotBubble = () => {
                 key={s}
                 type="button"
                 onClick={() => kirim(s)}
-                className="px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition-colors"
+                className="px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition-colors"
               >
                 {s}
               </button>
@@ -230,14 +231,14 @@ const ChatbotBubble = () => {
               }}
               placeholder="Tulis pertanyaan..."
               aria-label="Pertanyaan untuk asisten kas air"
-              className="flex-1 min-w-0 px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl text-[15px] border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
             <button
               type="submit"
               aria-label="Kirim pertanyaan"
-              className="p-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white transition-colors shrink-0"
+              className="p-3 rounded-xl bg-teal-600 hover:bg-teal-500 text-white transition-colors shrink-0"
             >
-              <Send size={16} />
+              <Send size={20} />
             </button>
           </form>
         </div>
@@ -254,7 +255,7 @@ const ChatbotBubble = () => {
         aria-label={terbuka ? 'Tutup asisten kas air' : 'Buka asisten kas air'}
         className="fixed z-50 rounded-full bg-teal-600 hover:bg-teal-500 text-white shadow-lg flex items-center justify-center transition-colors cursor-grab active:cursor-grabbing"
       >
-        {terbuka ? <X size={22} /> : <MessageCircle size={22} />}
+        {terbuka ? <X size={26} /> : <MessageCircle size={26} />}
       </button>
     </div>
   );
