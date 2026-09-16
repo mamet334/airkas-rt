@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useState } from 'react'
 import { useDb } from './store/DbContext';
+import ChatbotBubble from './features/chatbot/ChatbotBubble';
 const Dashboard = lazy(() => import('./views/Dashboard'));
 const DataWarga = lazy(() => import('./views/DataWarga'));
 const PencatatanMeteran = lazy(() => import('./views/PencatatanMeteran'));
@@ -463,6 +464,9 @@ const App = () => {
 
         </div>
       )}
+
+      {/* Chatbot warga — melayang di semua halaman, hanya membaca data */}
+      <ChatbotBubble />
 
     </div>
   );
