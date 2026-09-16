@@ -675,7 +675,17 @@ const Pengaturan = () => {
 
           {/* Daftar administrator */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Daftar Administrator</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Daftar Administrator</p>
+              <button
+                type="button"
+                onClick={loadAdmins}
+                disabled={adminsLoading}
+                className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+              >
+                Muat ulang
+              </button>
+            </div>
             {adminsLoading ? (
               <p className="text-[11px] text-slate-400 dark:text-slate-500">Memuat daftar admin...</p>
             ) : (
@@ -692,16 +702,21 @@ const Pengaturan = () => {
                         Terakhir login: {a.last_sign_in_at ? fmtDateTime(a.last_sign_in_at) : 'belum pernah'}
                       </p>
                     </div>
-                    {admins.length > 1 && (
+                    {admins.length > 1 ? (
                       <button
                         type="button"
                         title="Hapus administrator"
                         onClick={() => handleStartDeleteAdmin(a)}
                         disabled={adminBusy || !!pendingAdminAction}
-                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors disabled:opacity-40 shrink-0"
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 border border-rose-300 dark:border-rose-800 hover:text-white hover:bg-rose-600 transition-colors disabled:opacity-40 flex items-center gap-1 shrink-0"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={12} />
+                        Hapus
                       </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
+                        admin terakhir
+                      </span>
                     )}
                   </li>
                 ))}

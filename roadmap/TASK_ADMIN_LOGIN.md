@@ -2,8 +2,8 @@
 
 Date: September 15, 2026
 Author: Slamet (via Claude, security audit + roadmap alignment discussion)
-Status: IMPLEMENTED — keamanan RLS terverifikasi di produksi; tes akhir "Kelola Administrator" (OTP email) masih menunggu (lihat §5 dan §12.7)
-Last updated: September 15, 2026 (malam) — KOREKSI: status "COMPLETED" sebelumnya tidak akurat karena RLS ternyata belum aktif. Sudah diperbaiki & diverifikasi; fitur Kelola Administrator ditulis ulang. Detail di §12.
+Status: IMPLEMENTED — RLS, login, tambah admin, dan ganti password terverifikasi di produksi; sisa satu tes: hapus admin (lihat §5 dan §12.7)
+Last updated: September 16, 2026 — tambah admin & login admin kedua terverifikasi. (15 Sept malam — KOREKSI: status "COMPLETED" sebelumnya tidak akurat karena RLS ternyata belum aktif. Sudah diperbaiki & diverifikasi; fitur Kelola Administrator ditulis ulang. Detail di §12.)
 Supersedes: previous `1789455701955_TASK_ADMIN_LOGIN.md` (9 Sept 2026) — same scope, updated to explicitly sequence against the chatbot/Orange Data Mining roadmap below.
 
 > This document REPLACES the "Database Security Hardening (RLS-only)"
@@ -185,17 +185,19 @@ Status per 15 Sept 2026 malam (✅ = terverifikasi, ⏳ = menunggu tes):
 - [x] ✅ After login, PIN can be used as an in-session quick-lock;
       logout / session expiry always requires full email+password
       login again (PIN alone cannot regain access after logout).
-- [ ] ⏳ "Add Admin" menu (visible only to a logged-in admin): enter new
+- [x] ✅ "Add Admin" menu (visible only to a logged-in admin): enter new
       admin's email → OTP sent to **the currently logged-in admin's
       email** → admin enters the OTP → new admin account is
-      created only then. *(Kode & Edge Function v2 sudah live; template
-      email & Site URL sudah dikonfigurasi; tes tertunda karena batas
-      kirim email Supabase.)*
+      created only then. *(Diuji 16 Sept 2026 12:06 WIB: admin kedua
+      `andreanastasya798@gmail.com` berhasil dibuat, tercatat di
+      `admin_users` dan Audit Log id 877.)*
 - [ ] ⏳ Attempting to add an admin with a wrong/empty OTP **fails** —
       no new account is created. *(Edge Function sudah terbukti menolak
       panggilan tanpa login / token palsu — HTTP 401.)*
-- [ ] ⏳ The second admin can log in and has the same permissions as the
-      first admin.
+- [x] ✅ The second admin can log in and has the same permissions as the
+      first admin. *(Diuji 16 Sept 2026 12:07 WIB; ganti password dari
+      menu Pengaturan juga berhasil.)*
+- [ ] ⏳ Hapus admin (dengan OTP) — belum diuji; lihat §12.7.
 - [x] ✅ RLS: INSERT/UPDATE/DELETE on `pembayaran`, `pengeluaran`,
       `warga`, `meteran`, `settings` succeeds only for a user who is
       logged in AND recorded as an admin. Fails for anon/unauthenticated
@@ -471,7 +473,9 @@ CREATE POLICY "a" ON public.settings    FOR ALL USING (true) WITH CHECK (true);
 Hanya tampil untuk admin yang sudah login (menu Pengaturan tersembunyi
 tanpa buka kunci).
 
-- **Daftar admin** — email, waktu terakhir login, tombol hapus.
+- **Daftar admin** — email, waktu terakhir login, tombol **Hapus** di tiap
+  baris, dan tombol **Muat ulang** di kanan judul daftar. Jika admin tinggal
+  satu, tombol Hapus diganti keterangan *"admin terakhir"*.
 - **Tambah admin** — email + password awal (min. 8 karakter) → kode OTP
   dikirim ke email **admin yang sedang login** → masukkan kode → akun
   dibuat & langsung aktif.
@@ -553,8 +557,12 @@ data yang terhapus tidak bisa dipulihkan.
 
 ### 12.7 Belum selesai / catatan terbuka
 
-- ⏳ **Tes akhir Kelola Administrator** — tambah admin uji (OTP) → login &
-  ganti password → hapus admin uji (OTP). Tertunda karena batas email.
+- ✅ **Tambah admin + login admin kedua + ganti password** — diuji berhasil
+  16 Sept 2026 (lihat §5).
+- ⏳ **Tes hapus admin** — akun uji `andreanastasya798@gmail.com` masih
+  terdaftar sebagai admin dan **perlu dihapus** lewat Pengaturan → Kelola
+  Administrator → Hapus (butuh 1 OTP). Setelah itu pastikan hanya tersisa
+  `slametbro798@gmail.com` dan penghapusan tercatat di Audit Log.
 - ⚠️ **PIN bawaan `slamet2026`** tertulis di kode publik GitHub. Ganti PIN
   di Pengaturan jika belum pernah diganti.
 - ⚠️ **Restore / Reset** di Pengaturan menghapus & mengisi data baris per
