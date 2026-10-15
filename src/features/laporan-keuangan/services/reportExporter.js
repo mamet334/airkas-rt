@@ -344,7 +344,7 @@ export const generateYearlyPDF = (data, settings, selectedYear) => {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  const { summaryData, grandTotals } = data;
+  const { summaryData, grandTotals, bukuRange } = data;
   const rtName = settings?.nama_rt || 'RT / RW';
   const periodeText = `Tahun ${selectedYear}`;
 
@@ -362,6 +362,18 @@ export const generateYearlyPDF = (data, settings, selectedYear) => {
   doc.setFont('helvetica', 'normal');
   doc.text(`Tahun Buku: ${selectedYear}`, pageWidth / 2, 28, { align: 'center' });
 
+  // Batas tahun buku mengikuti siklus 15-14, bukan 1 Januari - 31 Desember,
+  // jadi rentangnya ditulis agar pembaca tidak salah mengira kalender biasa.
+  if (bukuRange) {
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(
+      `Siklus: ${bukuRange.start?.split('-').reverse().join('/')} s/d ${bukuRange.end?.split('-').reverse().join('/')}`,
+      pageWidth / 2, 33, { align: 'center' }
+    );
+    doc.setTextColor(0, 0, 0);
+  }
+
   // TABEL REKAP
   const tableData = (summaryData || [])
     .filter(d => d.totalPemasukan > 0 || d.totalPengeluaran > 0)
@@ -374,7 +386,7 @@ export const generateYearlyPDF = (data, settings, selectedYear) => {
     ]);
 
   autoTable(doc, {
-    startY: 38,
+    startY: 40,
     head: [['Bulan', 'Tagihan Air', 'Total Pemasukan', 'Pengeluaran', 'Saldo Bersih']],
     body: tableData,
     theme: 'grid',

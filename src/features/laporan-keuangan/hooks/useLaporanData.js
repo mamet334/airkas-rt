@@ -102,11 +102,24 @@ const prepareMonthlyData = (state, b, t, targetB, targetT) => {
 };
 
 const prepareYearlyData = (state, tahun) => {
-  const activeMonths = Array.from({ length: 12 }, (_, i) => i + 1);
-  
-  const summaryData = activeMonths.map(bulan => 
-    calculateMonthlySummary(bulan, tahun, state)
+  // Tahun buku mengikuti siklus 15-14, bukan tanggal 1 sampai 31.
+  // Dibuka 15 Desember tahun sebelumnya dan ditutup 14 Januari tahun
+  // berikutnya: baris Januari tahun depan wajib ada karena uang tagihan
+  // Desember baru masuk pada siklus itu (15 Des - 14 Jan). Tanpa baris
+  // tersebut, pembayaran tagihan Desember hilang dari tahun buku ini.
+  const periods = [
+    ...Array.from({ length: 12 }, (_, i) => ({ bulan: i + 1, tahun })),
+    { bulan: 1, tahun: tahun + 1 }
+  ];
+
+  const summaryData = periods.map(({ bulan, tahun: t }) =>
+    calculateMonthlySummary(bulan, t, state)
   );
+
+  const bukuRange = {
+    start: getCycleDateRange(1, tahun).start,
+    end: getCycleDateRange(1, tahun + 1).end
+  };
 
   const grandTotals = summaryData.reduce((acc, d) => ({
     tagihan: acc.tagihan + d.totalTagihan,
@@ -120,6 +133,7 @@ const prepareYearlyData = (state, tahun) => {
 
   return {
     summaryData,
+    bukuRange,
     grandTotals: {
       ...grandTotals,
       saldo: grandTotals.pemasukan - grandTotals.pengeluaran

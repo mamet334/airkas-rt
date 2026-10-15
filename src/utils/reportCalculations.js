@@ -1,5 +1,6 @@
 // src/utils/reportCalculations.js
 import { MONTHS } from './format.js';
+import { filterByrBySiklus, filterKlrBySiklus } from './billingEngine.js';
 
 /**
  * Hitung total tagihan untuk periode tertentu
@@ -56,17 +57,20 @@ export const calculateMonthlySummary = (bulan, tahun, state) => {
     return x.bulan === bulan && x.tahun === tahun && w && w.alamat !== 'SISTEM';
   });
   
-  const pBln = pembayaran.filter(p => p.bulan === bulan && p.tahun === tahun);
-  const kBln = pengeluaran.filter(k => {
-    const kMonth = new Date(k.tanggal).getMonth() + 1;
-    const kYear = new Date(k.tanggal).getFullYear();
-    return kMonth === bulan && kYear === tahun;
-  });
+  // Sisi TAGIHAN memakai kolom bulan/tahun, yaitu siklus tempat tagihan terbit.
+  const byrPeriode = pembayaran.filter(p => p.bulan === bulan && p.tahun === tahun);
 
-  const totalTagihan = calculateTotalTagihan(mBln, warga, pBln);
-  const totalBayarWater = calculatePendapatanAir(pBln, meteran, warga);
-  
-  const allNonAirPayments = pBln.filter(p => {
+  // Sisi ARUS KAS memakai tanggal uang berpindah, disaring dengan siklus 15-14
+  // persis seperti laporan bulanan. Sebelumnya pengeluaran disaring per bulan
+  // kalender (1-31), sehingga pengeluaran tanggal 20 Oktober masuk "Oktober"
+  // di rekap tahunan tetapi "November" di laporan bulanan.
+  const byrSiklus = filterByrBySiklus(pembayaran, bulan, tahun);
+  const klrSiklus = filterKlrBySiklus(pengeluaran, bulan, tahun);
+
+  const totalTagihan = calculateTotalTagihan(mBln, warga, byrPeriode);
+  const totalBayarWater = calculatePendapatanAir(byrPeriode, meteran, warga);
+
+  const allNonAirPayments = byrSiklus.filter(p => {
     const mt = meteran.find(x => x.id === p.meteran_id);
     if (!mt) return true;
     const w = warga.find(wg => wg.id === mt.warga_id);
@@ -77,20 +81,23 @@ export const calculateMonthlySummary = (bulan, tahun, state) => {
     .filter(p => !p.keterangan || !p.keterangan.startsWith('[PATUNGAN]'))
     .reduce((s, p) => s + p.jumlah_bayar, 0);
 
-  const totalPemasukan = pBln.reduce((s, p) => s + p.jumlah_bayar, 0);
-  const totalPengeluaran = kBln.reduce((s, k) => s + k.jumlah, 0);
+  const totalPemasukan = byrSiklus.reduce((s, p) => s + p.jumlah_bayar, 0);
+  const totalPengeluaran = klrSiklus.reduce((s, k) => s + k.jumlah, 0);
   
   const patunganBln = allNonAirPayments.filter(p => 
     p.keterangan && p.keterangan.startsWith('[PATUNGAN]')
   );
   const totalPatungan = patunganBln.reduce((s, p) => s + p.jumlah_bayar, 0);
 
-  const kPatungan = kBln.filter(k => k.kategori === 'Perbaikan Mesin (Patungan)');
+  const kPatungan = klrSiklus.filter(k => k.kategori === 'Perbaikan Mesin (Patungan)');
   const totalKlrPatungan = kPatungan.reduce((s, k) => s + k.jumlah, 0);
 
   return {
     bulan,
-    bulanNama: MONTHS[bulan],
+    tahun,
+    // Tahunnya ikut ditulis karena rekap tahunan memuat dua kali "Januari"
+    // (awal tahun buku dan penutupnya di tahun berikutnya).
+    bulanNama: `${MONTHS[bulan]} ${tahun}`,
     totalTagihan,
     totalBayarWater,
     totalKasLain,

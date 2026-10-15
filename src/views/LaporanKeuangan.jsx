@@ -8,7 +8,7 @@ import SummaryCards from '../features/laporan-keuangan/components/SummaryCards';
 import WargaDetailTable from '../features/laporan-keuangan/components/WargaDetailTable';
 import PengeluaranTable from '../features/laporan-keuangan/components/PengeluaranTable';
 import TransactionLog from '../features/laporan-keuangan/components/TransactionLog';
-import { fmtRp, MONTHS } from '../utils/format';
+import { fmtRp, fmtDate, MONTHS } from '../utils/format';
 
 const LaporanKeuangan = () => {
   const { state } = useDb();
@@ -155,12 +155,23 @@ const LaporanKeuangan = () => {
             <h2 className="text-lg font-bold text-slate-900 uppercase">REKAPITULASI LAPORAN KEUANGAN TAHUNAN</h2>
             <h3 className="text-sm font-bold text-teal-800 uppercase mt-0.5">{state.settings?.nama_rt || 'KAS AIR RT / RW'}</h3>
             <h4 className="text-xs font-bold mt-1 text-slate-700">Tahun Buku: {selectedYear}</h4>
+            {data.bukuRange && (
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                Siklus {fmtDate(data.bukuRange.start)} s/d {fmtDate(data.bukuRange.end)}
+              </p>
+            )}
             <p className="text-xs text-slate-600 mt-1">Pengelola: {state.settings?.pengelola || 'Nama Pengelola'}</p>
           </div>
 
           {/* Tabel Tahunan Sederhana */}
           <div className="rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200/50 dark:border-slate-700/50 p-5 print:overflow-visible print:border-none print:shadow-none">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4">Rekapitulasi Per Bulan</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Rekapitulasi Per Bulan</h3>
+            {data.bukuRange && (
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4 mt-0.5 leading-relaxed">
+                Tahun buku mengikuti siklus 15-14: <strong>{fmtDate(data.bukuRange.start)} s/d {fmtDate(data.bukuRange.end)}</strong>.
+                Baris Januari {selectedYear + 1} ikut dihitung karena pembayaran tagihan Desember baru masuk pada siklus itu.
+              </p>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -174,7 +185,7 @@ const LaporanKeuangan = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
                   {data.summaryData?.map(d => (
-                    <tr key={d.bulan} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                    <tr key={`${d.tahun}-${d.bulan}`} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                       <td className="p-3 font-bold text-slate-900 dark:text-slate-100">{d.bulanNama}</td>
                       <td className="p-3 text-right font-mono">{fmtRp(d.totalTagihan)}</td>
                       <td className="p-3 text-right font-mono font-bold text-emerald-600">{fmtRp(d.totalPemasukan)}</td>
