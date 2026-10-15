@@ -69,7 +69,7 @@ const WargaRow = ({ warga, index, mtrBln, byrBln, targetB, targetT, state }) => 
         {m ? (m.meter_sekarang ?? '-') : '-'}
       </div>
       <div className="p-2 bg-teal-50/40 dark:bg-teal-950/20 text-teal-700 dark:text-teal-300 rounded-xl font-mono">
-        {m ? (m.pemakaian_m3 || m.pemakaian || 0) : 0} m³
+        {m ? (m.pemakaian || 0) : 0} m³
       </div>
       <div className="p-2 bg-amber-50/40 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 rounded-xl font-mono font-bold">
         {fmtRp(rawTagihan)}

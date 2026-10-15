@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { generateMonthlyPDF, generateYearlyPDF } from '../services/reportExporter';
 import { fmtRp, MONTHS } from '../../../utils/format';
-import { getWargaBillingSummary } from '../../../utils/billingEngine'; 
+import { getWargaBillingSummary, getTunggakanBulanan } from '../../../utils/billingEngine';
 
 export const useReportActions = (data, reportType, selectedMonth, selectedYear, state) => {
   const [isSharing, setIsSharing] = useState(false);
@@ -81,7 +81,7 @@ export const useReportActions = (data, reportType, selectedMonth, selectedYear, 
         if (w.adalah_pengelola) status = 'Pengelola';
         else if (sisa >= 0) status = 'Lunas';
 
-        csv += `${idx + 1};${escapeCsv(w.nama)};${w.no_meter || '-'};${m?.pemakaian_m3 || 0};${m?.total_tagihan || 0};${bayarVal};${status}\n`;
+        csv += `${idx + 1};${escapeCsv(w.nama)};${w.no_meter || '-'};${m?.pemakaian || 0};${m?.total_tagihan || 0};${bayarVal};${status}\n`;
       });
       csv += `\n`;
 
@@ -172,7 +172,17 @@ export const useReportActions = (data, reportType, selectedMonth, selectedYear, 
             lunasList.push(w.nama);
           }
         } else {
-          belumList.push(`${w.nama} (Tagihan ${fmtRp(sisa)})`);
+          const { jumlahBulan } = getTunggakanBulanan(w.id, targetB, targetT, state);
+          // Label jumlah bulan sengaja hanya muncul mulai 2 bulan.
+          // Satu bulan belum dibayar adalah kondisi normal (tagihan baru
+          // terbit), sehingga menuliskannya hanya memperpanjang teks tanpa
+          // memberi informasi. Mulai 2 bulan, kemunculan label itu sendiri
+          // sudah menjadi pengingat bahwa warga tertinggal.
+          belumList.push(
+            jumlahBulan >= 2
+              ? `${w.nama} — ${jumlahBulan} bulan · ${fmtRp(sisa)}`
+              : `${w.nama} (Tagihan ${fmtRp(sisa)})`
+          );
         }
       });
 
@@ -203,7 +213,11 @@ export const useReportActions = (data, reportType, selectedMonth, selectedYear, 
 
       const lines = [
         `*💧 LAPORAN KEUANGAN KAS AIR ${rtName.toUpperCase()} 💧*`,
-        `*Periode: ${MONTHS[selectedMonth].toUpperCase()} ${selectedYear}*`,
+        // Dua periode berbeda sengaja ditulis terpisah: arus kas memakai
+        // siklus yang dipilih, sedangkan daftar tagihan di bawah berisi
+        // tagihan air siklus sebelumnya (yang ditagih selama siklus ini).
+        `*Periode Kas: ${MONTHS[selectedMonth].toUpperCase()} ${selectedYear}*`,
+        `*Tagihan Air: ${MONTHS[targetB].toUpperCase()} ${targetT}*`,
         `_${alamatRt}_`,
         `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
         ``,

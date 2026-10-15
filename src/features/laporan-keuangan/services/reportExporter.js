@@ -149,7 +149,7 @@ export const generateMonthlyPDF = (data, settings, state) => {
         idx + 1,
         w.nama,
         w.no_meter || '-',
-        m ? (m.pemakaian_m3 || m.pemakaian || 0) : 0,
+        m ? (m.pemakaian || 0) : 0,
         Number(m?.total_tagihan || 0),
         Number(bayarVal),
         bayarVal >= (m?.total_tagihan || 0) ? 'Lunas' : 'Belum Lunas'
