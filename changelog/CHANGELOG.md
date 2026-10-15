@@ -11,6 +11,10 @@ Urutan terbaru di atas. Cara menambah entri ada di [README.md](README.md).
 ## 16 Oktober 2026
 
 ### Perawatan
+- Pemeriksaan otomatis (CI) kini memakai **Node 24**, sama dengan yang
+  dipakai Vercel saat membangun aplikasi untuk warga dan sama dengan
+  komputer kerja. Sebelumnya CI memakai Node 20 — lingkungan yang tidak
+  dipakai siapa pun, sehingga pemeriksaannya kurang berarti.
 - Memperbarui `actions/checkout` dan `actions/setup-node` ke v7. Peringatan
   GitHub soal Node.js 20 yang sudah usang hilang.
 - Aturan "uang patungan tidak melunasi tagihan air" dulu ditulis di tiga
