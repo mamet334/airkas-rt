@@ -4,6 +4,7 @@ import { useNotification } from '../store/NotificationContext';
 import { fmtRp, fmtDate, fmtDateTime, MONTHS } from '../utils/format';
 import { getCycleMonthYear } from '../utils/billing';
 import { getWargaBillingSummary, evaluatePaymentStatus } from '../utils/billingEngine';
+import InputRupiah from '../components/InputRupiah';
 import { 
   Download, 
   Plus, 
@@ -712,11 +713,10 @@ const Pembayaran = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Jumlah Uang Diterima (Rp)</label>
-                  <input
-                    type="number"
+                  <InputRupiah
                     required
                     value={payJumlah}
-                    onChange={(e) => setPayJumlah(e.target.value)}
+                    onChange={setPayJumlah}
                     className="px-3 py-2 w-full rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                   />
                 </div>
@@ -818,11 +818,10 @@ const Pembayaran = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Nominal Patungan (Rp)</label>
-                <input
-                  type="number"
+                <InputRupiah
                   required
                   value={patunganJumlah}
-                  onChange={(e) => setPatunganJumlah(e.target.value)}
+                  onChange={setPatunganJumlah}
                   className="px-3 py-2 w-full rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                 />
               </div>
@@ -931,11 +930,10 @@ const Pembayaran = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Jumlah Masuk (Rp)</label>
-                <input
-                  type="number"
+                <InputRupiah
                   required
                   value={kasLainJumlah}
-                  onChange={(e) => setKasLainJumlah(e.target.value)}
+                  onChange={setKasLainJumlah}
                   placeholder="Nominal Rupiah"
                   className="px-3 py-2 w-full rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                 />

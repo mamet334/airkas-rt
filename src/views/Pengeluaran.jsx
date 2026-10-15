@@ -3,6 +3,7 @@ import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp, fmtDate, MONTHS } from '../utils/format';
 import { getCycleMonthYear, filterKlrBySiklus } from '../utils/billing';
+import InputRupiah from '../components/InputRupiah';
 import { 
   Download, 
   Plus, 
@@ -346,12 +347,11 @@ const Pengeluaran = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Nominal Jumlah (Rp)</label>
-                  <input
-                    type="number"
+                  <InputRupiah
                     required
                     value={formData.jumlah}
-                    onChange={(e) => setFormData({ ...formData, jumlah: e.target.value })}
-                    placeholder="Contoh: 150000"
+                    onChange={(jumlah) => setFormData({ ...formData, jumlah })}
+                    placeholder="Contoh: 150.000"
                     className="px-3 py-2 w-full rounded-xl text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
                   />
                 </div>

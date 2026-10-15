@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
 import { fmtRp, fmtDateTime } from '../utils/format';
+import InputRupiah from '../components/InputRupiah';
 import { Save, Lock, Download, Upload, Bell, BellOff, Key, Database, UserPlus, Shield, CheckCircle2, Trash2 } from 'lucide-react';
 
 const LAST_BACKUP_KEY = 'airkas_last_backup';
@@ -476,21 +477,19 @@ const Pengaturan = () => {
           <form onSubmit={handleSaveTariff} className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Tarif Air per m³ (Rp)</label>
-              <input
-                type="number"
+              <InputRupiah
                 disabled={!isAdminUnlocked}
                 value={tariffForm.tarif_per_m3}
-                onChange={(e) => setTariffForm({ ...tariffForm, tarif_per_m3: e.target.value })}
+                onChange={(tarif_per_m3) => setTariffForm({ ...tariffForm, tarif_per_m3 })}
                 className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 disabled:opacity-60"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Biaya Administrasi Bulanan (Rp)</label>
-              <input
-                type="number"
+              <InputRupiah
                 disabled={!isAdminUnlocked}
                 value={tariffForm.biaya_admin}
-                onChange={(e) => setTariffForm({ ...tariffForm, biaya_admin: e.target.value })}
+                onChange={(biaya_admin) => setTariffForm({ ...tariffForm, biaya_admin })}
                 className="px-3 py-2 w-full rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 disabled:opacity-60"
               />
             </div>
