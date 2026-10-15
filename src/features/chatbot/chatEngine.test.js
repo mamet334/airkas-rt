@@ -139,8 +139,8 @@ describe('answerQuestion — saldo & ringkasan', () => {
 
   it('membuat laporan periode', () => {
     const { text } = answerQuestion('laporan bulan ini', state, HARI_INI);
-    expect(text).toContain('Tagihan air terbit: Rp120.000'); // 80.000 + 40.000
-    expect(text).toContain('Uang keluar: Rp200.000');
+    expect(text).toContain('Tagihan air terbit: Rp 120.000'); // 80.000 + 40.000
+    expect(text).toContain('Uang keluar: Rp 200.000');
     expect(text).toContain('Sudah lunas: 1 dari 2 warga');
   });
 });
@@ -150,15 +150,15 @@ describe('answerQuestion — tagihan warga (detail penuh)', () => {
     const { text } = answerQuestion('tagihan bowo berapa', state, HARI_INI);
     expect(text).toContain('100 → 110');
     expect(text).toContain('pakai 10 m³');
-    expect(text).toContain('Tarif: Rp8.000/m³');
+    expect(text).toContain('Tarif: Rp 8.000/m³');
     expect(text).toContain('Lunas');
   });
 
   it('merinci bulan-bulan yang tertunggak', () => {
     const { text } = answerQuestion('tagihan siti', state, HARI_INI);
     expect(text).toContain('Tunggakan sebelumnya');
-    expect(text).toContain('Agustus 2026: Rp64.000');
-    expect(text).toContain('Sisa yang harus dibayar: Rp104.000');
+    expect(text).toContain('Agustus 2026: Rp 64.000');
+    expect(text).toContain('Sisa yang harus dibayar: Rp 104.000');
   });
 
   it('menyebut pembayaran terakhir', () => {
@@ -181,23 +181,23 @@ describe('answerQuestion — tunggakan', () => {
     expect(intent).toBe('sudah_bayar');
     expect(text).toContain('Sudah lunas periode');
     expect(text).toContain('1 dari 2 warga');
-    expect(text).toContain('Bowo — Rp80.000');
+    expect(text).toContain('Bowo — Rp 80.000');
     expect(text).not.toContain('Siti Aminah');
-    expect(text).toContain('Total dibayar periode ini: Rp80.000');
+    expect(text).toContain('Total dibayar periode ini: Rp 80.000');
   });
 
   it('rincian belum bayar menyebut bulan tertunggak', () => {
     const { intent, text } = answerQuestion('rincian belum bayar', state, HARI_INI);
     expect(intent).toBe('rincian_belum_bayar');
     expect(text).toContain('Bulan tertunggak: Agustus 2026');
-    expect(text).toContain('Tagihan periode ini: Rp40.000');
+    expect(text).toContain('Tagihan periode ini: Rp 40.000');
   });
 });
 
 describe('answerQuestion — kas keluar/masuk', () => {
   it('merinci transaksi pengeluaran sesuai siklus 15-14', () => {
     const { text } = answerQuestion('pengeluaran bulan ini', state, HARI_INI);
-    expect(text).toContain('Rp200.000'); // 150.000 (20 Agt) + 50.000 (10 Sep)
+    expect(text).toContain('Rp 200.000'); // 150.000 (20 Agt) + 50.000 (10 Sep)
     expect(text).toContain('Rincian transaksi');
     expect(text).toContain('Token listrik pompa');
     expect(text).not.toContain('999.000');
