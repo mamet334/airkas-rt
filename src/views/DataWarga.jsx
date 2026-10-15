@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useDb } from '../store/DbContext';
 import { useNotification } from '../store/NotificationContext';
-import { Search, UserPlus, Edit2, Lock, Check, X } from 'lucide-react';
+import { Search, UserPlus, Edit2, Lock, Check, X, Wrench, History } from 'lucide-react';
+import { MONTHS, fmtDate } from '../utils/format';
+import { periodKey } from '../utils/meterChain';
 
 const DataWarga = () => {
   const { state, isAdminUnlocked, executeWrite } = useDb();
@@ -11,6 +13,8 @@ const DataWarga = () => {
   const [editingWarga, setEditingWarga] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // Warga yang sedang dilihat riwayat meterannya (null = modal tertutup)
+  const [riwayatWarga, setRiwayatWarga] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -132,6 +136,14 @@ const DataWarga = () => {
     );
   });
 
+  // Penggantian meteran warga yang sedang dilihat, terbaru di atas.
+  const riwayatList = useMemo(() => {
+    if (!riwayatWarga) return [];
+    return (state.penggantian_meter || [])
+      .filter(g => g.warga_id === riwayatWarga.id)
+      .sort((a, b) => periodKey(b.bulan, b.tahun) - periodKey(a.bulan, a.tahun));
+  }, [riwayatWarga, state.penggantian_meter]);
+
   return (
     <div className="space-y-6">
       {/* FILTER & ACTIONS BAR */}
@@ -179,13 +191,14 @@ const DataWarga = () => {
                 <th className="p-4 sticky top-0 z-20 bg-slate-50 dark:bg-slate-800">Telepon</th>
                 <th className="p-4 sticky top-0 z-20 bg-slate-50 dark:bg-slate-800 text-center">Status</th>
                 <th className="p-4 sticky top-0 z-20 bg-slate-50 dark:bg-slate-800 text-center">Tipe</th>
+                <th className="p-4 sticky top-0 z-20 bg-slate-50 dark:bg-slate-800 text-center">Riwayat Meteran</th>
                 {isAdminUnlocked && <th className="p-4 sticky top-0 z-20 bg-slate-50 dark:bg-slate-800 text-center">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
               {filteredWarga.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdminUnlocked ? 7 : 6} className="p-8 text-center text-slate-400 dark:text-slate-500 font-medium">
+                  <td colSpan={isAdminUnlocked ? 8 : 7} className="p-8 text-center text-slate-400 dark:text-slate-500 font-medium">
                     Data warga tidak ditemukan.
                   </td>
                 </tr>
@@ -213,6 +226,19 @@ const DataWarga = () => {
                         </span>
                       )}
                     </td>
+                    <td className="p-4 text-center">
+                      {(state.penggantian_meter || []).some(g => g.warga_id === w.id) ? (
+                        <button
+                          onClick={() => setRiwayatWarga(w)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/40 transition-colors"
+                        >
+                          <Wrench size={10} />
+                          {(state.penggantian_meter || []).filter(g => g.warga_id === w.id).length}x ganti
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">Belum pernah</span>
+                      )}
+                    </td>
                     {isAdminUnlocked && (
                       <td className="p-4 text-center">
                         <button
@@ -230,6 +256,77 @@ const DataWarga = () => {
           </table>
         </div>
       </div>
+
+      {/* MODAL: RIWAYAT METERAN */}
+      {riwayatWarga && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
+          <div className="max-w-lg w-full max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <History size={18} className="text-amber-500" />
+                  Riwayat Meteran
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <strong className="text-slate-700 dark:text-slate-200">{riwayatWarga.nama}</strong>
+                  {' '}&middot; meteran aktif <code className="font-mono text-cyan-600 dark:text-cyan-400">{riwayatWarga.no_meter}</code>
+                </p>
+              </div>
+              <button
+                onClick={() => setRiwayatWarga(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/40 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+              Angka meteran lama tersimpan sebagai arsip dan tidak ikut dalam perhitungan tagihan meteran baru.
+            </div>
+
+            <div className="space-y-3">
+              {riwayatList.map((g, idx) => (
+                <div key={g.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
+                      <Wrench size={10} />
+                      Penggantian ke-{riwayatList.length - idx}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{fmtDate(g.tanggal)}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                    <div className="text-slate-500 dark:text-slate-400">Berlaku mulai siklus</div>
+                    <div className="font-bold text-slate-800 dark:text-slate-200 text-right">{MONTHS[g.bulan]} {g.tahun}</div>
+
+                    <div className="text-slate-500 dark:text-slate-400">No. meter lama</div>
+                    <div className="font-mono text-right text-slate-700 dark:text-slate-300">{g.no_meter_lama || '-'}</div>
+
+                    <div className="text-slate-500 dark:text-slate-400">Angka akhir meteran lama</div>
+                    <div className="font-mono text-right text-slate-700 dark:text-slate-300">
+                      {g.meter_akhir_lama === null || g.meter_akhir_lama === undefined
+                        ? <span className="text-slate-400 font-sans">tidak dicatat</span>
+                        : `${g.meter_akhir_lama} m³`}
+                    </div>
+
+                    <div className="text-slate-500 dark:text-slate-400">No. meter baru</div>
+                    <div className="font-mono text-right text-cyan-600 dark:text-cyan-400 font-bold">{g.no_meter_baru || 'tetap'}</div>
+
+                    <div className="text-slate-500 dark:text-slate-400">Mulai dari angka</div>
+                    <div className="font-mono text-right font-bold text-slate-800 dark:text-slate-200">{g.meter_awal_baru}</div>
+                  </div>
+
+                  {g.keterangan && (
+                    <p className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/40 text-[11px] text-slate-500 dark:text-slate-400 italic">
+                      {g.keterangan}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FORM MODAL (ADD / EDIT) */}
       {(isAdding || editingWarga) && (

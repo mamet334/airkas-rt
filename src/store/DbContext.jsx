@@ -43,6 +43,7 @@ export const DbProvider = ({ children }) => {
     settings: { tarif_per_m3: 8000, biaya_admin: 0 },
     warga: [],
     meteran: [],
+    penggantian_meter: [],
     pembayaran: [],
     pengeluaran: [],
     audit: [],
@@ -130,10 +131,11 @@ export const DbProvider = ({ children }) => {
     if (!silent) setIsLoading(true);
 
     try {
-      const [s, w, m, p, k, a, rpc] = await Promise.all([
+      const [s, w, m, gm, p, k, a, rpc] = await Promise.all([
         supabase.from('settings').select('*').single(),
         supabase.from('warga').select('*').order('nama'),
         supabase.from('meteran').select('*').order('tahun', { ascending: false }).order('bulan', { ascending: false }).limit(2000),
+        supabase.from('penggantian_meter').select('*').order('tahun', { ascending: false }).order('bulan', { ascending: false }).limit(2000),
         supabase.from('pembayaran').select('*').order('tanggal_bayar', { ascending: false }).limit(2000),
         supabase.from('pengeluaran').select('*').order('tanggal', { ascending: false }).limit(2000),
         supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100),
@@ -143,6 +145,9 @@ export const DbProvider = ({ children }) => {
       if (s.error && s.error.code !== 'PGRST116') throw s.error;
       if (w.error) throw w.error;
       if (m.error) throw m.error;
+      // Sengaja tidak throw: bila migrasi penggantian_meter belum dijalankan,
+      // aplikasi harus tetap berjalan seperti sebelumnya, bukan gagal total.
+      if (gm.error) console.warn('Tabel penggantian_meter belum tersedia:', gm.error.message);
       if (p.error) throw p.error;
       if (k.error) throw k.error;
       if (a.error) throw a.error;
@@ -159,6 +164,7 @@ export const DbProvider = ({ children }) => {
         settings: activeSettings,
         warga: w.data || [],
         meteran: m.data || [],
+        penggantian_meter: gm.data || [],
         pembayaran: p.data || [],
         pengeluaran: k.data || [],
         audit: a.data || [],
@@ -344,6 +350,10 @@ export const DbProvider = ({ children }) => {
         if (action === 'insert') nextState.meteran = [data, ...nextState.meteran];
         if (action === 'update') nextState.meteran = nextState.meteran.map(m => m.id === id ? { ...m, ...data } : m);
         if (action === 'delete') nextState.meteran = nextState.meteran.filter(m => m.id !== id);
+      } else if (table === 'penggantian_meter') {
+        if (action === 'insert') nextState.penggantian_meter = [data, ...nextState.penggantian_meter];
+        if (action === 'update') nextState.penggantian_meter = nextState.penggantian_meter.map(g => g.id === id ? { ...g, ...data } : g);
+        if (action === 'delete') nextState.penggantian_meter = nextState.penggantian_meter.filter(g => g.id !== id);
       } else if (table === 'pembayaran') {
         if (action === 'insert') nextState.pembayaran = [data, ...nextState.pembayaran];
         if (action === 'update') nextState.pembayaran = nextState.pembayaran.map(p => p.id === id ? { ...p, ...data } : p);
@@ -391,6 +401,7 @@ export const DbProvider = ({ children }) => {
             const nextState = { ...prev };
             if (table === 'warga') nextState.warga = nextState.warga.map(w => w.id === data.id ? { ...w, id: insertedData.id } : w);
             if (table === 'meteran') nextState.meteran = nextState.meteran.map(m => m.id === data.id ? { ...m, id: insertedData.id } : m);
+            if (table === 'penggantian_meter') nextState.penggantian_meter = nextState.penggantian_meter.map(g => g.id === data.id ? { ...g, id: insertedData.id } : g);
             if (table === 'pembayaran') nextState.pembayaran = nextState.pembayaran.map(p => p.id === data.id ? { ...p, id: insertedData.id } : p);
             if (table === 'pengeluaran') nextState.pengeluaran = nextState.pengeluaran.map(k => k.id === data.id ? { ...k, id: insertedData.id } : k);
             return nextState;
