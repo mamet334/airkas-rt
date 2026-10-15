@@ -34,6 +34,8 @@ export const useReportActions = (data, reportType, selectedMonth, selectedYear, 
     try {
       const rtName = state.settings?.nama_rt || 'RT / RW';
       const periode = `${MONTHS[selectedMonth]} ${selectedYear}`;
+      // Tagihan yang dirinci di bawah berasal dari siklus sebelumnya
+      const tagihanPeriode = `${MONTHS[data.targetB] || ''} ${data.targetT || ''}`.trim() || periode;
       const filename = `Laporan_Keuangan_${MONTHS[selectedMonth]}_${selectedYear}.csv`;
 
       const escapeCsv = (value) => {
@@ -55,7 +57,8 @@ export const useReportActions = (data, reportType, selectedMonth, selectedYear, 
       
       // 1. HEADER
       csv += `LAPORAN KEUANGAN BULANAN;${escapeCsv(rtName)}\n`;
-      csv += `Periode;${escapeCsv(periode)}\n\n`;
+      csv += `Periode Kas;${escapeCsv(periode)}\n`;
+      csv += `Tagihan Air;${escapeCsv(tagihanPeriode)}\n\n`;
     
       // 2. RINGKASAN KEUANGAN
       csv += `RINGKASAN KEUANGAN\n`;
@@ -66,22 +69,33 @@ export const useReportActions = (data, reportType, selectedMonth, selectedYear, 
       csv += `Saldo Kas RT;${data.saldoAkhirCash || 0}\n\n`;
 
       // 3. DETAIL TAGIHAN WARGA
-      csv += `DETAIL TAGIHAN WARGA\n`;
-      csv += `No;Nama;No Meter;Pakai (m3);Tagihan;Bayar;Status\n`;
-    
+      // Baris judul bagian, bukan isi sel — tidak perlu dikutip, kalau dikutip
+      // tanda kutipnya ikut terlihat saat dibuka di Excel.
+      csv += `DETAIL TAGIHAN WARGA - Tagihan Air ${tagihanPeriode}\n`;
+      csv += `No;Nama;No Meter;Pakai (m3);Tagihan;Tunai;Dari Saldo;Status\n`;
+
       const wargaActiveSorted = (state.warga || [])
         .filter(w => w.aktif && w.alamat !== 'SISTEM')
         .sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999));
 
       wargaActiveSorted.forEach((w, idx) => {
         const m = data.mtrBln?.find(x => x.warga_id === w.id);
-        const bayarVal = m ? (data.byrBln?.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) || 0) : 0;
-        const sisa = bayarVal - (m?.total_tagihan || 0);
-        let status = 'Belum Lunas';
-        if (w.adalah_pengelola) status = 'Pengelola';
-        else if (sisa >= 0) status = 'Lunas';
+        const tunai = m ? (data.byrBln?.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) || 0) : 0;
+        const rawTagihan = Number(m?.total_tagihan || 0);
 
-        csv += `${idx + 1};${escapeCsv(w.nama)};${w.no_meter || '-'};${m?.pemakaian || 0};${m?.total_tagihan || 0};${bayarVal};${status}\n`;
+        // Rumus resmi aplikasi, sama dengan PDF, layar, dan teks WhatsApp.
+        // Aturan lama (tunai >= tagihan) mengabaikan saldo warga, sehingga
+        // warga yang lunas lewat sisa saldonya tetap tertulis "Belum Lunas".
+        const { deposit, kewajiban, sisa } = getWargaBillingSummary(
+          w.id, rawTagihan, tunai, data.targetB, data.targetT, state
+        );
+        const dariSaldo = Math.min(deposit, Math.max(0, kewajiban - tunai));
+
+        const status = w.adalah_pengelola ? 'Pengelola' : (sisa <= 0 ? 'Lunas' : 'Belum Lunas');
+
+        // Angka sengaja dibiarkan polos tanpa titik ribuan agar tetap bisa
+        // dijumlahkan di Excel; titik akan membuatnya dibaca sebagai teks.
+        csv += `${idx + 1};${escapeCsv(w.nama)};${w.no_meter || '-'};${m?.pemakaian || 0};${rawTagihan};${tunai};${dariSaldo};${status}\n`;
       });
       csv += `\n`;
 

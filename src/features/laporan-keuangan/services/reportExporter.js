@@ -1,5 +1,6 @@
 // src/features/laporan-keuangan/services/reportExporter.js
-import { MONTHS } from '../../../utils/format';
+import { MONTHS, fmtRp } from '../../../utils/format';
+import { getWargaBillingSummary } from '../../../utils/billingEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -64,15 +65,18 @@ export const generateMonthlyPDF = (data, settings, state) => {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   
-  const { 
-    b, t, cycleRange, tagihan, pendapatanAir, 
+  const {
+    b, t, cycleRange, tagihan, pendapatanAir,
     masuk, keluar, saldo, saldoPatungan,
-    mtrBln, byrBln, klrBln, byrSiklus 
+    mtrBln, byrBln, klrBln, byrSiklus,
+    targetB, targetT
   } = data;
 
   const rtName = settings?.nama_rt || 'RT / RW';
   const pengelola = settings?.pengelola || 'Pengelola';
   const periodeText = `${MONTHS[b]} ${t}`;
+  // Tagihan yang dirinci di bawah adalah milik siklus sebelumnya
+  const tagihanText = `${MONTHS[targetB] || ''} ${targetT || ''}`.trim() || periodeText;
 
   // ==========================================
   // 1. HEADER UTAMA
@@ -86,21 +90,27 @@ export const generateMonthlyPDF = (data, settings, state) => {
   doc.setTextColor(0, 0, 0);
   doc.text(`KAS AIR ${rtName}`, pageWidth / 2, 22, { align: 'center' });
   
+  // Satu laporan memuat DUA periode berbeda: arus kas memakai siklus yang
+  // dipilih, sedangkan daftar tagihan warga di bawah berisi tagihan air siklus
+  // sebelumnya (yang ditagih selama siklus ini). Satu baris "Periode" dulu
+  // menggabungkan keduanya sehingga warga mengira angka tagihannya bulan ini.
   doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Periode Kas: ${periodeText}`, pageWidth / 2, 28, { align: 'center' });
+  doc.text(`Tagihan Air: ${tagihanText}`, pageWidth / 2, 33, { align: 'center' });
+
   doc.setFont('helvetica', 'normal');
-  doc.text(`Periode: ${periodeText}`, pageWidth / 2, 28, { align: 'center' });
-  
   if (cycleRange) {
     doc.text(
-      `Siklus: ${cycleRange.start?.split('-').reverse().join('/')} s/d ${cycleRange.end?.split('-').reverse().join('/')}`, 
-      pageWidth / 2, 33, { align: 'center' }
+      `Siklus Kas: ${cycleRange.start?.split('-').reverse().join('/')} s/d ${cycleRange.end?.split('-').reverse().join('/')}`,
+      pageWidth / 2, 38, { align: 'center' }
     );
   }
 
   // ==========================================
   // 2. RINGKASAN KEUANGAN
   // ==========================================
-  let yPos = 42;
+  let yPos = 46;
   const summaryData = [
     ['Total Tagihan', `Rp ${Number(tagihan || 0).toLocaleString('id-ID')}`],
     ['Pendapatan Air', `Rp ${Number(pendapatanAir || 0).toLocaleString('id-ID')}`],
@@ -136,29 +146,43 @@ export const generateMonthlyPDF = (data, settings, state) => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text('Detail Pembayaran Warga:', 14, yPos);
+  doc.text(`Detail Pembayaran Warga - Tagihan Air ${tagihanText}:`, 14, yPos);
   
   const wargaData = (state?.warga || [])
     .filter(w => w.aktif && w.alamat !== 'SISTEM')
     .sort((a, b) => (a.no_urut || 999) - (b.no_urut || 999))
     .map((w, idx) => {
       const m = mtrBln?.find(x => x.warga_id === w.id);
-      const bayarVal = m ? (byrBln?.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) || 0) : 0;
-      
+      const tunai = m ? (byrBln?.filter(p => p.meteran_id === m.id).reduce((s, p) => s + p.jumlah_bayar, 0) || 0) : 0;
+      const rawTagihan = Number(m?.total_tagihan || 0);
+
+      // Memakai rumus resmi aplikasi, sama dengan layar Laporan Keuangan dan
+      // teks WhatsApp. Sebelumnya PDF memakai aturannya sendiri (tunai >=
+      // tagihan) yang mengabaikan saldo warga, sehingga warga yang sudah lunas
+      // lewat sisa saldonya tetap tertulis "Belum Lunas".
+      const { deposit, kewajiban, sisa } = getWargaBillingSummary(
+        w.id, rawTagihan, tunai, targetB, targetT, state
+      );
+
+      // Bagian saldo yang benar-benar terpakai menutup kewajiban bulan ini —
+      // bukan seluruh saldo yang dimiliki warga.
+      const dariSaldo = Math.min(deposit, Math.max(0, kewajiban - tunai));
+
       return [
         idx + 1,
         w.nama,
         w.no_meter || '-',
         m ? (m.pemakaian || 0) : 0,
-        Number(m?.total_tagihan || 0),
-        Number(bayarVal),
-        bayarVal >= (m?.total_tagihan || 0) ? 'Lunas' : 'Belum Lunas'
+        fmtRp(rawTagihan),
+        fmtRp(tunai),
+        dariSaldo > 0 ? fmtRp(dariSaldo) : '-',
+        sisa <= 0 ? 'Lunas' : 'Belum Lunas'
       ];
     });
 
   autoTable(doc, {
     startY: yPos + 4,
-    head: [['No', 'Nama Warga', 'No Meter', 'Pakai', 'Tagihan', 'Bayar', 'Status']],
+    head: [['No', 'Nama Warga', 'No Meter', 'Pakai', 'Tagihan', 'Tunai', 'Dari Saldo', 'Status']],
     body: wargaData,
     theme: 'striped',
     margin: { left: 14, right: 14 },
@@ -175,14 +199,17 @@ export const generateMonthlyPDF = (data, settings, state) => {
       lineColor: [220, 220, 220]
     },
     alternateRowStyles: { fillColor: [248, 250, 252] },
+    // Total 172mm; lebar cetak A4 setelah margin 14mm kiri-kanan adalah 182mm,
+    // jadi masih ada ruang sisa setelah kolom "Dari Saldo" ditambahkan.
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 40 },
-      2: { cellWidth: 20, halign: 'center' },
-      3: { cellWidth: 15, halign: 'center' },
+      0: { cellWidth: 9, halign: 'center' },
+      1: { cellWidth: 34 },
+      2: { cellWidth: 17, halign: 'center' },
+      3: { cellWidth: 13, halign: 'center' },
       4: { cellWidth: 25, halign: 'right' },
       5: { cellWidth: 25, halign: 'right' },
-      6: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
+      6: { cellWidth: 25, halign: 'right' },
+      7: { cellWidth: 24, halign: 'center', fontStyle: 'bold' }
     }
   });
 
