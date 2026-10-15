@@ -1,6 +1,29 @@
 import { getCycleDateRange, getCycleMonthYear } from './cycleEngine.js';
 import { periodKey } from './meterChain.js';
 
+/**
+ * Apakah sebuah pembayaran boleh dihitung sebagai pembayaran AIR milik warga.
+ *
+ * Diabaikan: pembayaran tanpa meteran, dan pembayaran yang terhubung ke
+ * meteran milik warga SISTEM (mis. patungan perbaikan pompa) — supaya uang
+ * patungan tidak ikut melunasi tagihan air.
+ *
+ * Aturan ini dulu disalin apa adanya di tiga tempat, sehingga perubahannya
+ * harus diingat di tiga tempat pula. Sekarang hanya ada di sini.
+ */
+const isPembayaranAirWarga = (bayar, wargaId, state) => {
+  if (bayar.warga_id !== wargaId) return false;
+  if (bayar.meteran_id === null) return false;
+
+  const mtr = state.meteran.find(met => met.id === bayar.meteran_id);
+  if (mtr) {
+    const wg = state.warga.find(w => w.id === mtr.warga_id);
+    if (wg && wg.alamat === 'SISTEM') return false;
+  }
+
+  return true;
+};
+
 // 1. Arrears (Tunggakan Lalu)
 export const calculateArrears = (wargaId, m, y, state) => {
   const w = state.warga.find(wg => wg.id === wargaId);
@@ -12,18 +35,10 @@ export const calculateArrears = (wargaId, m, y, state) => {
   });
   const totalTagihan = pastMeters.reduce((s, x) => s + x.total_tagihan, 0);
 
-  const pastPayments = state.pembayaran.filter(x => {
-    if (x.warga_id !== wargaId) return false;
-    if (x.meteran_id === null) return false;
-
-    const mtr = state.meteran.find(met => met.id === x.meteran_id);
-    if (mtr) {
-      const wg = state.warga.find(wItem => wItem.id === mtr.warga_id);
-      if (wg && wg.alamat === 'SISTEM') return false;
-    }
-
-    return (x.tahun < y) || (x.tahun === y && x.bulan < m);
-  });
+  const pastPayments = state.pembayaran.filter(x =>
+    isPembayaranAirWarga(x, wargaId, state) &&
+    ((x.tahun < y) || (x.tahun === y && x.bulan < m))
+  );
   const totalBayar = pastPayments.reduce((s, x) => s + x.jumlah_bayar, 0);
 
   return Math.max(0, totalTagihan - totalBayar);
@@ -40,18 +55,10 @@ export const calculateDeposit = (wargaId, m, y, state) => {
   });
   const totalTagihan = pastMeters.reduce((s, x) => s + x.total_tagihan, 0);
 
-  const pastPayments = state.pembayaran.filter(x => {
-    if (x.warga_id !== wargaId) return false;
-    if (x.meteran_id === null) return false;
-
-    const mtr = state.meteran.find(met => met.id === x.meteran_id);
-    if (mtr) {
-      const wg = state.warga.find(wItem => wItem.id === mtr.warga_id);
-      if (wg && wg.alamat === 'SISTEM') return false;
-    }
-
-    return (x.tahun < y) || (x.tahun === y && x.bulan < m);
-  });
+  const pastPayments = state.pembayaran.filter(x =>
+    isPembayaranAirWarga(x, wargaId, state) &&
+    ((x.tahun < y) || (x.tahun === y && x.bulan < m))
+  );
   const totalBayar = pastPayments.reduce((s, x) => s + x.jumlah_bayar, 0);
 
   return Math.max(0, totalBayar - totalTagihan);
@@ -99,18 +106,10 @@ export const getTunggakanBulanan = (wargaId, m, y, state) => {
     .sort((a, b) => periodKey(a.bulan, a.tahun) - periodKey(b.bulan, b.tahun));
 
   let sisaUang = state.pembayaran
-    .filter(x => {
-      if (x.warga_id !== wargaId) return false;
-      if (x.meteran_id === null) return false;
-
-      const mtr = state.meteran.find(met => met.id === x.meteran_id);
-      if (mtr) {
-        const wg = state.warga.find(wItem => wItem.id === mtr.warga_id);
-        if (wg && wg.alamat === 'SISTEM') return false;
-      }
-
-      return periodKey(x.bulan, x.tahun) <= batas;
-    })
+    .filter(x =>
+      isPembayaranAirWarga(x, wargaId, state) &&
+      periodKey(x.bulan, x.tahun) <= batas
+    )
     .reduce((s, x) => s + (x.jumlah_bayar || 0), 0);
 
   const periode = [];

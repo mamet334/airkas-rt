@@ -62,3 +62,61 @@ describe('Billing Engine Tests', () => {
     });
   });
 });
+
+// Aturan "pembayaran patungan tidak melunasi tagihan air" kini tinggal satu
+// salinan di dalam billingEngine, dipakai bersama oleh perhitungan tunggakan,
+// deposit, dan rincian tunggakan per bulan. Diuji dari kedua sisi agar
+// salinan tunggal itu tidak bisa berubah diam-diam.
+describe('Pembayaran patungan tidak ikut melunasi tagihan air', () => {
+  const warga = [
+    { id: 1, nama: 'Warga', aktif: true, adalah_pengelola: false, alamat: 'Rumah' },
+    { id: 9, nama: 'Kas RT (Umum)', aktif: true, adalah_pengelola: false, alamat: 'SISTEM' }
+  ];
+  const meteran = [
+    { id: 'a1', warga_id: 1, bulan: 1, tahun: 2026, total_tagihan: 100000 },
+    { id: 'sys', warga_id: 9, bulan: 1, tahun: 2026, total_tagihan: 500000 }
+  ];
+
+  it('patungan ke meteran warga SISTEM tidak mengurangi tunggakan', () => {
+    const state = {
+      warga, meteran,
+      pembayaran: [
+        { id: 'x1', warga_id: 1, meteran_id: 'sys', bulan: 1, tahun: 2026, jumlah_bayar: 100000,
+          keterangan: '[PATUNGAN] Perbaikan Pompa' }
+      ]
+    };
+    expect(calculateArrears(1, 2, 2026, state)).toBe(100000);
+    expect(calculateDeposit(1, 2, 2026, state)).toBe(0);
+  });
+
+  it('pembayaran air biasa tetap mengurangi tunggakan', () => {
+    const state = {
+      warga, meteran,
+      pembayaran: [
+        { id: 'x2', warga_id: 1, meteran_id: 'a1', bulan: 1, tahun: 2026, jumlah_bayar: 100000 }
+      ]
+    };
+    expect(calculateArrears(1, 2, 2026, state)).toBe(0);
+  });
+
+  it('pembayaran tanpa meteran_id diabaikan', () => {
+    const state = {
+      warga, meteran,
+      pembayaran: [
+        { id: 'x3', warga_id: 1, meteran_id: null, bulan: 1, tahun: 2026, jumlah_bayar: 100000 }
+      ]
+    };
+    expect(calculateArrears(1, 2, 2026, state)).toBe(100000);
+  });
+
+  it('kelebihan bayar air tetap menjadi deposit', () => {
+    const state = {
+      warga, meteran,
+      pembayaran: [
+        { id: 'x4', warga_id: 1, meteran_id: 'a1', bulan: 1, tahun: 2026, jumlah_bayar: 130000 }
+      ]
+    };
+    expect(calculateDeposit(1, 2, 2026, state)).toBe(30000);
+    expect(calculateArrears(1, 2, 2026, state)).toBe(0);
+  });
+});
