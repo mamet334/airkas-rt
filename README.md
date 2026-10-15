@@ -1,5 +1,15 @@
 # React + Vite
 
+## Dokumentasi
+
+- [`changelog/CHANGELOG.md`](changelog/CHANGELOG.md) — riwayat perubahan aplikasi
+- [`changelog/mantra-antigravity.md`](changelog/mantra-antigravity.md) — aturan main proyek, **baca sebelum mengubah apa pun**
+- [`changelog/handoff_chatgpt_airkas.md`](changelog/handoff_chatgpt_airkas.md) — pengenalan proyek untuk pihak baru
+- [`changelog/README.md`](changelog/README.md) — cara menambah entri changelog
+- [`roadmap/`](roadmap/) — catatan tugas besar yang pernah dikerjakan
+
+---
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

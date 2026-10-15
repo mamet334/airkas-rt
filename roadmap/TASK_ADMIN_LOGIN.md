@@ -286,8 +286,8 @@ as part of this task.
 
 ## 10. REFERENCES
 
-- `mantra-antigravity.md`
-- `handoff_chatgpt_airkas.md`
+- `changelog/mantra-antigravity.md`
+- `changelog/handoff_chatgpt_airkas.md`
 - `AI_TASK_BRIEF.md` (general template + RLS discussion history prior
   to this goal being finalized)
 - `audit_log` append-only audit & fix history — 9 September 2026
